@@ -1,7 +1,7 @@
 import { useEffect, useSyncExternalStore } from 'react'
 import { engine } from './audio/engine.js'
 import Screen from './components/Screen.jsx'
-import Pads, { KEYS } from './components/Pads.jsx'
+import Pads, { bankPads } from './components/Pads.jsx'
 import Knob from './components/Knob.jsx'
 import Sequencer from './components/Sequencer.jsx'
 
@@ -30,12 +30,12 @@ export default function App() {
         engine.togglePlay()
         return
       }
-      const pad = KEY_CODES.indexOf(e.code)
-      if (pad >= 0) engine.trigger(pad)
+      const key = KEY_CODES.indexOf(e.code)
+      if (key >= 0) engine.trigger(bankPads(engine.getState().bank)[key])
     }
     const up = (e) => {
-      const pad = KEY_CODES.indexOf(e.code)
-      if (pad >= 0) engine.release(pad)
+      const key = KEY_CODES.indexOf(e.code)
+      if (key >= 0) engine.release(bankPads(engine.getState().bank)[key])
     }
     window.addEventListener('keydown', down)
     window.addEventListener('keyup', up)
@@ -52,7 +52,7 @@ export default function App() {
           <span className="mast-model">WIRE-2004</span>
           <span className="mast-sub">chipmunk soul sampler</span>
         </h1>
-        <p>One song, twelve chops, four drums. Built around Kanye West's “Through the Wire”.</p>
+        <p>Kanye West's “Through the Wire”, taken apart and put back in your hands.</p>
       </header>
 
       <main className="unit">
@@ -100,11 +100,20 @@ export default function App() {
 
         <section className="deck deck-pads">
           <div className="modes">
-            <div className="mode-group">
-              <span className="mode-label">CHOP</span>
-              <button className={`btn${s.sliceMode === 'auto' ? ' is-on' : ''}`} onClick={() => engine.reslice('auto')}>AUTO</button>
-              <button className={`btn${s.sliceMode === 'grid' ? ' is-on' : ''}`} onClick={() => engine.reslice('grid')}>GRID</button>
-            </div>
+            {s.kit && (
+              <div className="mode-group">
+                <span className="mode-label">BANK</span>
+                <button className={`btn${s.bank === 'A' ? ' is-on' : ''}`} onClick={() => engine.setBank('A')} aria-pressed={s.bank === 'A'}>A · THE BEAT</button>
+                <button className={`btn${s.bank === 'B' ? ' is-on' : ''}`} onClick={() => engine.setBank('B')} aria-pressed={s.bank === 'B'}>B · CHOP IT</button>
+              </div>
+            )}
+            {s.bank === 'B' && (
+              <div className="mode-group">
+                <span className="mode-label">CHOP</span>
+                <button className={`btn${s.sliceMode === 'auto' ? ' is-on' : ''}`} onClick={() => engine.reslice('auto')}>AUTO</button>
+                <button className={`btn${s.sliceMode === 'grid' ? ' is-on' : ''}`} onClick={() => engine.reslice('grid')}>GRID</button>
+              </div>
+            )}
             <div className="mode-group">
               <span className="mode-label">PLAY</span>
               <button className={`btn${s.choke ? ' is-on' : ''}`} onClick={() => engine.set({ choke: !s.choke, message: s.choke ? 'CHOPS OVERLAP' : 'CHOPS CUT EACH OTHER OFF' })} aria-pressed={s.choke}>CHOKE</button>
@@ -114,7 +123,7 @@ export default function App() {
 
           <Pads s={s} />
 
-          {s.kit && (
+          {s.kit && s.bank === 'B' && (
             <div className="mode-group stems">
               <span className="mode-label">STEM</span>
               {s.kit.stems.map((stem) => (
@@ -132,9 +141,11 @@ export default function App() {
 
           <div className="source">
             <p>
-              {s.kit
-                ? 'Every sound here is cut from the record itself. The drums are hits lifted out of the song, and the chops can come from the full mix or any single stem.'
-                : "Running on Apple's official 30-second preview, with synthesized drums standing in for the record's own."}
+              {!s.kit
+                ? "Running on Apple's official 30-second preview, with synthesized drums standing in for the record's own."
+                : s.bank === 'A'
+                  ? 'The hook of the record, pulled apart. Top row: its drums, bass, music and vocal as loops that stack in time. Middle rows: the sample, one bar per pad. Bottom row: single drum hits.'
+                  : 'Twelve chops you place yourself, anywhere in the song, cut from the full mix or from any single stem.'}
             </p>
           </div>
         </section>
@@ -144,10 +155,11 @@ export default function App() {
         <div>
           <h2>How to play</h2>
           <ul>
-            <li><b>{KEYS.slice(0, 12).join(' ')}</b> fire the chops, <b>Z X C V</b> are kick, snare, hat and open hat.</li>
-            <li>Drag a marker on the screen to move a chop. Click the thin strip above it to chop a different part of the song.</li>
-            <li>Turn <b>PITCH</b> up to speed the sample into chipmunk soul. Double-click any knob to reset it.</li>
-            <li>Arm <b>REC</b>, press play, and your pad hits are written into the pattern.</li>
+            <li>Keys <b>1 2 3 4 / Q W E R / A S D F / Z X C V</b> match the pads, row by row. <b>Space</b> starts and stops the clock.</li>
+            <li><b>Bank A</b> is the beat taken apart. Tap the top row to bring a loop in on the next bar; tap again to drop it out.</li>
+            <li><b>Bank B</b> is for your own chops. Drag a marker to move one, and click the thin strip to jump to another part of the song.</li>
+            <li>Turn <b>PITCH</b> up to speed the samples into chipmunk soul. Change the tempo and the loops speed up with it, like tape.</li>
+            <li>Arm <b>REC</b>, press play, and your pad hits are written into the pattern. Double-click any knob to reset it.</li>
           </ul>
         </div>
         <div>

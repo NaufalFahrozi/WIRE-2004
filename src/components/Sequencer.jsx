@@ -1,7 +1,11 @@
-import { engine, padName, N_PADS, STEPS } from '../audio/engine.js'
+import { engine, padName, STEPS } from '../audio/engine.js'
+import { bankPads } from './Pads.jsx'
 
 export default function Sequencer({ s }) {
   const row = s.pattern[s.selected]
+  const isLoop = engine.kindOf(s.selected) === 'loop'
+  const rows = bankPads(s.bank).filter((pad) => engine.kindOf(pad) !== 'loop')
+
   return (
     <div className="seq">
       <div className="seq-head">
@@ -9,22 +13,32 @@ export default function Sequencer({ s }) {
         <span className="seq-hint">one bar, sixteen steps</span>
       </div>
 
-      <div className="steps">
-        {row.map((on, i) => (
-          <button
-            key={i}
-            className={`step${on ? ' step-on' : ''}${s.step === i ? ' step-now' : ''}${i % 4 === 0 ? ' step-beat' : ''}`}
-            onClick={() => engine.toggleStep(s.selected, i)}
-            aria-pressed={on}
-            aria-label={`Step ${i + 1}`}
-          >
-            {i + 1}
-          </button>
-        ))}
-      </div>
+      {isLoop ? (
+        <p className="seq-note">
+          Loops run on their own and come in on the bar line. Pick a sample or a drum to write steps for it.
+        </p>
+      ) : (
+        <div className="steps">
+          {row.map((on, i) => (
+            <button
+              key={i}
+              className={`step${on ? ' step-on' : ''}${s.step === i ? ' step-now' : ''}${i % 4 === 0 ? ' step-beat' : ''}`}
+              onClick={() => engine.toggleStep(s.selected, i)}
+              aria-pressed={on}
+              aria-label={`Step ${i + 1}`}
+            >
+              {i + 1}
+            </button>
+          ))}
+        </div>
+      )}
 
-      <div className="map" aria-label="Pattern overview. Click a row to edit that pad.">
-        {Array.from({ length: N_PADS }, (_, pad) => (
+      <div
+        className="map"
+        style={{ gridTemplateRows: `repeat(${Math.ceil(rows.length / 2)}, auto)` }}
+        aria-label="Pattern overview. Click a row to edit that pad."
+      >
+        {rows.map((pad) => (
           <button
             key={pad}
             className={`map-row${pad === s.selected ? ' map-row-selected' : ''}`}
@@ -34,10 +48,7 @@ export default function Sequencer({ s }) {
             <span className="map-name">{padName(pad)}</span>
             <span className="map-cells">
               {Array.from({ length: STEPS }, (_, i) => (
-                <i
-                  key={i}
-                  className={`${s.pattern[pad][i] ? 'on' : ''}${s.step === i ? ' now' : ''}`}
-                />
+                <i key={i} className={`${s.pattern[pad][i] ? 'on' : ''}${s.step === i ? ' now' : ''}`} />
               ))}
             </span>
           </button>

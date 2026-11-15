@@ -1,18 +1,25 @@
-// WIRE-2004 audio engine: one track, twelve chops, four drums, sixteen steps.
+// WIRE-2004 audio engine.
+//
+// Two banks of sixteen pads share one clock:
+//   Bank A, "the beat": the record taken apart. Four loops (drums, bass, music,
+//           vocal) that stack in sync, eight one-bar phrases of the sample, and
+//           four drum hits.
+//   Bank B, "chop it":  twelve chops you place yourself anywhere in the song,
+//           on any stem, plus the same four drum hits.
 
 import { detectOnsets, gridSlices, peaks } from './slicer.js'
 import { playDrum, DRUMS } from './drums.js'
 
 export const N_CHOPS = 12
-export const N_PADS = 16
+export const BANK_SIZE = 16
+export const N_PADS = BANK_SIZE * 2
 export const STEPS = 16
 export const REGION_SECONDS = 24
 
 // Apple's catalogue id for "Through the Wire" (Kanye West, The College Dropout).
-// The app asks Apple for the current preview address at runtime and streams it;
-// no audio is bundled with this project.
+// Only used when no kit has been built: the app then streams Apple's preview.
 const TRACK_ID = 1437467903
-const SETTINGS_KEY = 'wire2004.settings'
+const SETTINGS_KEY = 'wire2004.settings.v2'
 
 const emptyPattern = () => Array.from({ length: N_PADS }, () => Array(STEPS).fill(false))
 
@@ -22,8 +29,6 @@ function starterPattern() {
   put(12, [0, 7, 10])
   put(13, [4, 12])
   put(14, [0, 2, 4, 6, 8, 10, 12, 14])
-  put(0, [0])
-  put(1, [8])
   return p
 }
 
@@ -40,24 +45,29 @@ class Engine {
     this.listeners = new Set()
     this.hitListeners = new Set()
     this.voices = new Set()
+    this.loopNodes = new Map()
     this.buffer = null
     this.overview = null
-    this.peakCache = { key: '', data: null }
+    this.peakCache = new Map()
+    this.kitPads = []
+    this.drumBuffers = []
+    this.bufferVersion = 0
     this.timer = null
     this.nextTime = 0
     this.nextStep = 0
+    this.barCount = 0
     this.skip = new Set()
     this.taps = []
     this.saveTimer = null
-    this.drumBuffers = []
-    this.bufferVersion = 0
 
     this.state = {
       loading: false,
       message: 'POWER ON',
       source: { kind: 'none', name: '', duration: 0 },
       kit: null,
+      bank: 'B',
       stem: 'full',
+      loops: {},
       region: { start: 0, len: 0 },
       slices: [],
       sliceMode: 'auto',
@@ -72,7 +82,7 @@ class Engine {
       playing: false,
       rec: false,
       step: -1,
-      pattern: starterPattern(),
+      pattern: emptyPattern(),
       ...loadSettings(),
     }
   }
@@ -105,6 +115,19 @@ class Engine {
   onHit(fn) {
     this.hitListeners.add(fn)
     return () => this.hitListeners.delete(fn)
+  }
+
+  // ---- pads ----------------------------------------------------------------
+
+  kindOf(pad) {
+    if (pad >= BANK_SIZE) return this.kitPads[pad - BANK_SIZE]?.kind ?? 'empty'
+    return pad < N_CHOPS ? 'chop' : 'drum'
+  }
+
+  nameOf(pad) {
+    if (pad >= BANK_SIZE) return this.kitPads[pad - BANK_SIZE]?.name ?? '—'
+    if (pad < N_CHOPS) return `CHOP ${String(pad + 1).padStart(2, '0')}`
+    return this.state.kit?.drums[pad - N_CHOPS]?.name ?? DRUMS[pad - N_CHOPS]
   }
 
   // ---- audio graph ---------------------------------------------------------
@@ -160,22 +183,29 @@ class Engine {
   }
 
   // The kit is what tools/build_kit.py makes from the record: stems of the
-  // track plus drum hits lifted out of it. Without one (a fresh clone has no
-  // audio in it) the app falls back to Apple's 30-second preview.
+  // track, loops and phrases cut from its cleanest hook, and drum hits lifted
+  // out of it. Without one (a fresh clone has no audio in it) the app falls
+  // back to Apple's 30-second preview.
   async loadKit() {
     try {
       const res = await fetch('/kit/kit.json', { cache: 'no-store' })
       if (!res.ok || !(res.headers.get('content-type') || '').includes('json')) return false
       const kit = await res.json()
       this.set({ loading: true, message: 'LOADING THE KIT CUT FROM THE RECORD' })
-      this.drumBuffers = await Promise.all(kit.drums.map((d) => this.fetchAudio(`/kit/${d.file}`)))
+      const [drums, pads] = await Promise.all([
+        Promise.all(kit.drums.map((d) => this.fetchAudio(`/kit/${d.file}`))),
+        Promise.all(kit.pads.map(async (p) => ({ ...p, buffer: await this.fetchAudio(`/kit/${p.file}`) }))),
+      ])
+      this.drumBuffers = drums
+      this.kitPads = pads
       const stem = kit.stems.some((x) => x.id === this.state.stem) ? this.state.stem : kit.stems[0].id
       const buffer = await this.fetchAudio(`/kit/${kit.stems.find((x) => x.id === stem).file}`)
-      this.set({ kit, stem, bpm: Math.round(kit.bpm), sliceMode: 'grid' })
+      this.set({ kit, stem, bank: 'A', selected: BANK_SIZE, bpm: Math.round(kit.bpm), sliceMode: 'grid' })
       this.useBuffer(buffer, { kind: 'kit', name: kit.title }, 'KIT LOADED. EVERY SOUND IS FROM THE RECORD')
       return true
     } catch {
       this.drumBuffers = []
+      this.kitPads = []
       return false
     }
   }
@@ -186,7 +216,7 @@ class Engine {
     return this.ensureCtx().decodeAudioData(await res.arrayBuffer())
   }
 
-  // Swap which stem the chops are cut from. Chop points stay where they are.
+  // Swap which stem bank B's chops are cut from. Chop points stay put.
   async setStem(id) {
     const { kit } = this.state
     const stem = kit?.stems.find((x) => x.id === id)
@@ -212,15 +242,13 @@ class Engine {
       if (!url) throw new Error('no preview')
       const res = await fetch(url)
       if (!res.ok) throw new Error('preview unavailable')
-      await this.decode(await res.arrayBuffer(), { kind: 'preview', name: 'OFFICIAL PREVIEW' })
+      const buffer = await this.ensureCtx().decodeAudioData(await res.arrayBuffer())
+      // No record to take drums from here, so give the synth kit a beat.
+      if (!this.state.pattern.some((row) => row.some(Boolean))) this.set({ pattern: starterPattern() })
+      this.useBuffer(buffer, { kind: 'preview', name: 'OFFICIAL PREVIEW' }, 'PREVIEW LOADED. HIT A PAD')
     } catch {
       this.set({ loading: false, message: 'NO SIGNAL. CHECK YOUR CONNECTION AND RELOAD' })
     }
-  }
-
-  async decode(arrayBuffer, meta) {
-    const buffer = await this.ensureCtx().decodeAudioData(arrayBuffer)
-    this.useBuffer(buffer, meta, 'PREVIEW LOADED. HIT A PAD')
   }
 
   useBuffer(buffer, meta, message) {
@@ -241,19 +269,16 @@ class Engine {
     })
   }
 
-  // Nearest bar line that keeps the window inside the song, when the kit
-  // knows where the beats are.
-  snapToBar(t, len) {
-    const { kit } = this.state
-    if (!kit) return t
-    const bar = (4 * 60) / kit.bpm
-    let k = Math.round((t - kit.firstBeat) / bar)
-    while (kit.firstBeat + k * bar < 0) k++
-    while (k > 0 && kit.firstBeat + k * bar + len > this.buffer.duration) k--
-    return kit.firstBeat + k * bar
+  setBank(bank) {
+    if (bank === this.state.bank || (bank === 'A' && !this.state.kit)) return
+    this.set({
+      bank,
+      selected: bank === 'A' ? BANK_SIZE : 0,
+      message: bank === 'A' ? 'BANK A. THE BEAT, TAKEN APART' : 'BANK B. CHOP THE SONG YOURSELF',
+    })
   }
 
-  // ---- chops ---------------------------------------------------------------
+  // ---- bank B chops --------------------------------------------------------
 
   makeSlices(region, mode) {
     if (!this.buffer) return []
@@ -268,6 +293,18 @@ class Engine {
       slices: this.makeSlices(this.state.region, mode),
       message: mode === 'grid' ? 'CHOPPED ON AN EVEN GRID' : 'CHOPPED ON THE TRANSIENTS',
     })
+  }
+
+  // Nearest bar line that keeps the window inside the song, when the kit
+  // knows where the beats are.
+  snapToBar(t, len) {
+    const { kit } = this.state
+    if (!kit) return t
+    const bar = (4 * 60) / kit.bpm
+    let k = Math.round((t - kit.firstBeat) / bar)
+    while (kit.firstBeat + k * bar < 0) k++
+    while (k > 0 && kit.firstBeat + k * bar + len > this.buffer.duration) k--
+    return kit.firstBeat + k * bar
   }
 
   setRegionStart(start) {
@@ -291,13 +328,26 @@ class Engine {
     return i + 1 < slices.length ? slices[i + 1] : region.start + region.len
   }
 
+  cachedPeaks(key, make) {
+    if (!this.peakCache.has(key)) {
+      if (this.peakCache.size > 40) this.peakCache.clear()
+      this.peakCache.set(key, make())
+    }
+    return this.peakCache.get(key)
+  }
+
   regionPeaks(cols) {
     const { region } = this.state
-    const key = `${region.start}:${region.len}:${cols}:${this.bufferVersion}`
-    if (this.peakCache.key !== key) {
-      this.peakCache = { key, data: this.buffer ? peaks(this.buffer, region.start, region.len, cols) : null }
-    }
-    return this.peakCache.data
+    if (!this.buffer) return null
+    return this.cachedPeaks(`r:${region.start}:${region.len}:${cols}:${this.bufferVersion}`, () =>
+      peaks(this.buffer, region.start, region.len, cols),
+    )
+  }
+
+  padPeaks(pad, cols) {
+    const buffer = this.kitPads[pad - BANK_SIZE]?.buffer
+    if (!buffer) return null
+    return this.cachedPeaks(`p:${pad}:${cols}`, () => peaks(buffer, 0, buffer.duration, cols))
   }
 
   // ---- playing -------------------------------------------------------------
@@ -309,21 +359,27 @@ class Engine {
   trigger(pad, { time, fromSeq = false } = {}) {
     const ctx = this.ensureCtx()
     if (!fromSeq) this.wake()
-    const t = time ?? ctx.currentTime
+    const kind = this.kindOf(pad)
+    if (kind === 'empty') return
 
+    if (kind === 'loop') {
+      if (fromSeq) return
+      this.select(pad)
+      this.toggleLoop(pad)
+      return
+    }
+
+    const t = time ?? ctx.currentTime
     if (!fromSeq) {
       const patch = {}
       if (pad !== this.state.selected) patch.selected = pad
       if (this.state.rec && this.state.playing) Object.assign(patch, this.recordHit(pad))
       if (Object.keys(patch).length) this.set(patch)
     }
+    this.flash(pad, t)
 
-    const delay = Math.max(0, (t - ctx.currentTime) * 1000)
-    if (delay < 12) this.hitListeners.forEach((fn) => fn(pad))
-    else setTimeout(() => this.hitListeners.forEach((fn) => fn(pad)), delay)
-
-    if (pad >= N_CHOPS) {
-      const hit = this.drumBuffers[pad - N_CHOPS]
+    if (kind === 'drum') {
+      const hit = pad >= BANK_SIZE ? this.kitPads[pad - BANK_SIZE].buffer : this.drumBuffers[pad - N_CHOPS]
       if (hit) {
         const src = ctx.createBufferSource()
         src.buffer = hit
@@ -334,15 +390,22 @@ class Engine {
       }
       return
     }
-    if (!this.buffer || pad >= this.state.slices.length) return
 
+    if (kind === 'shot') {
+      const buffer = this.kitPads[pad - BANK_SIZE].buffer
+      this.playSample(pad, buffer, 0, buffer.duration, t, fromSeq)
+    } else if (this.buffer && pad < this.state.slices.length) {
+      const offset = this.state.slices[pad]
+      this.playSample(pad, this.buffer, offset, Math.max(0.02, this.sliceEnd(pad) - offset), t, fromSeq)
+    }
+  }
+
+  playSample(pad, buffer, offset, dur, t, fromSeq) {
+    const ctx = this.ctx
     if (this.state.choke) this.stopVoices(t)
-    const offset = this.state.slices[pad]
-    const dur = Math.max(0.02, this.sliceEnd(pad) - offset)
     const rate = Math.pow(2, this.state.pitch / 12)
-
     const src = ctx.createBufferSource()
-    src.buffer = this.buffer
+    src.buffer = buffer
     src.playbackRate.value = rate
     const g = ctx.createGain()
     g.gain.setValueAtTime(0, t)
@@ -358,8 +421,15 @@ class Engine {
     src.onended = () => this.voices.delete(voice)
   }
 
+  flash(pad, t) {
+    const delay = Math.max(0, (t - this.ctx.currentTime) * 1000)
+    if (delay < 12) this.hitListeners.forEach((fn) => fn(pad))
+    else setTimeout(() => this.hitListeners.forEach((fn) => fn(pad)), delay)
+  }
+
   release(pad) {
-    if (!this.state.gate || pad >= N_CHOPS) return
+    const kind = this.kindOf(pad)
+    if (!this.state.gate || (kind !== 'chop' && kind !== 'shot')) return
     for (const v of this.voices) if (v.pad === pad && !v.fromSeq) this.stopVoice(v)
   }
 
@@ -376,6 +446,69 @@ class Engine {
   stopVoices(t) {
     if (!this.ctx) return
     for (const v of this.voices) this.stopVoice(v, t ?? this.ctx.currentTime)
+  }
+
+  // ---- loops ---------------------------------------------------------------
+
+  // Loops wait for the next bar line, so whatever you stack stays in time.
+  toggleLoop(pad) {
+    const loops = { ...this.state.loops }
+    if (loops[pad]) {
+      this.stopLoop(pad)
+      delete loops[pad]
+      this.set({ loops, message: `${this.nameOf(pad)} LOOP OFF` })
+      return
+    }
+    loops[pad] = 'queued'
+    this.set({ loops, message: `${this.nameOf(pad)} LOOP COMES IN ON THE BAR` })
+    if (!this.state.playing) this.play()
+  }
+
+  loopRate() {
+    return this.state.bpm / this.state.kit.bpm
+  }
+
+  startLoop(pad, t) {
+    const { buffer, bars } = this.kitPads[pad - BANK_SIZE]
+    const ctx = this.ctx
+    const src = ctx.createBufferSource()
+    src.buffer = buffer
+    src.loop = true
+    const rate = this.loopRate()
+    src.playbackRate.value = rate
+    const g = ctx.createGain()
+    g.gain.setValueAtTime(0, t)
+    g.gain.linearRampToValueAtTime(1, t + 0.003)
+    src.connect(g).connect(this.sampleBus)
+    // Join at the bar the song has reached, so loops started at different
+    // moments still line up phrase for phrase.
+    const offset = (this.barCount % bars) * (240 / this.state.kit.bpm)
+    src.start(t, offset)
+    this.loopNodes.set(pad, { src, g, t0: t, offset, rate })
+    this.flash(pad, t)
+    setTimeout(() => {
+      if (this.state.loops[pad] === 'queued') this.set({ loops: { ...this.state.loops, [pad]: 'on' } })
+    }, Math.max(0, (t - ctx.currentTime) * 1000))
+  }
+
+  stopLoop(pad) {
+    const node = this.loopNodes.get(pad)
+    if (!node) return
+    const t = this.ctx.currentTime
+    node.g.gain.cancelScheduledValues(t)
+    node.g.gain.setTargetAtTime(0, t, 0.01)
+    node.src.stop(t + 0.08)
+    this.loopNodes.delete(pad)
+  }
+
+  // Where a loop's playhead is, as a fraction of its length.
+  loopPosition(pad) {
+    const node = this.loopNodes.get(pad)
+    const buffer = this.kitPads[pad - BANK_SIZE]?.buffer
+    if (!node || !buffer) return null
+    const now = this.ctx.currentTime
+    if (now < node.t0) return null
+    return ((node.offset + (now - node.t0) * node.rate) % buffer.duration) / buffer.duration
   }
 
   // ---- knobs ---------------------------------------------------------------
@@ -396,6 +529,17 @@ class Engine {
   }
   setBpm(v) {
     this.set({ bpm: Math.max(50, Math.min(180, Math.round(v))) })
+    // Loops are tape: change the tempo and they speed up or slow down with it.
+    if (!this.loopNodes.size) return
+    const now = this.ctx.currentTime
+    const rate = this.loopRate()
+    for (const [pad, node] of this.loopNodes) {
+      const length = this.kitPads[pad - BANK_SIZE].buffer.duration
+      node.offset = (node.offset + Math.max(0, now - node.t0) * node.rate) % length
+      node.t0 = Math.max(now, node.t0)
+      node.rate = rate
+      node.src.playbackRate.setValueAtTime(rate, now)
+    }
   }
 
   tap() {
@@ -407,7 +551,7 @@ class Engine {
     }
   }
 
-  // ---- sequencer -----------------------------------------------------------
+  // ---- clock and sequencer -------------------------------------------------
 
   get stepDur() {
     return 60 / this.state.bpm / 4
@@ -420,9 +564,10 @@ class Engine {
   play() {
     this.wake()
     this.nextStep = 0
+    this.barCount = 0
     this.nextTime = this.ctx.currentTime + 0.06
     this.skip.clear()
-    this.set({ playing: true, message: 'SEQUENCE RUNNING' })
+    this.set({ playing: true, message: 'RUNNING' })
     this.timer = setInterval(() => this.schedule(), 25)
     this.schedule()
   }
@@ -431,7 +576,8 @@ class Engine {
     clearInterval(this.timer)
     this.timer = null
     this.stopVoices()
-    this.set({ playing: false, step: -1, message: 'STOPPED' })
+    for (const pad of [...this.loopNodes.keys()]) this.stopLoop(pad)
+    this.set({ playing: false, step: -1, loops: {}, message: 'STOPPED' })
   }
 
   schedule() {
@@ -439,6 +585,12 @@ class Engine {
     while (this.nextTime < ctx.currentTime + 0.12) {
       const s = this.nextStep
       const t = this.nextTime + (s % 2 ? this.state.swing * this.stepDur * 0.5 : 0)
+      if (s === 0) {
+        for (const [pad, status] of Object.entries(this.state.loops)) {
+          if (status === 'queued' && !this.loopNodes.has(+pad)) this.startLoop(+pad, t)
+        }
+        this.barCount++
+      }
       for (let pad = 0; pad < N_PADS; pad++) {
         if (!this.state.pattern[pad][s]) continue
         const key = `${pad}:${s}`
@@ -477,7 +629,7 @@ class Engine {
   clearPad(pad) {
     const pattern = this.state.pattern.map((row) => row.slice())
     pattern[pad] = Array(STEPS).fill(false)
-    this.set({ pattern, message: `${padName(pad)} CLEARED` })
+    this.set({ pattern, message: `${this.nameOf(pad)} CLEARED` })
   }
 
   clearAll() {
@@ -485,10 +637,6 @@ class Engine {
   }
 }
 
-export function padName(pad) {
-  if (pad < N_CHOPS) return `CHOP ${String(pad + 1).padStart(2, '0')}`
-  return engine.state.kit?.drums[pad - N_CHOPS]?.name ?? DRUMS[pad - N_CHOPS]
-}
-
 export const engine = new Engine()
+export const padName = (pad) => engine.nameOf(pad)
 if (import.meta.env.DEV) window.__wire = engine

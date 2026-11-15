@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { engine, padName, N_CHOPS } from '../audio/engine.js'
+import { engine, padName, N_CHOPS, BANK_SIZE } from '../audio/engine.js'
 
 const AMBER = '#ffb62e'
 const AMBER_DIM = 'rgba(255, 182, 46, 0.34)'
@@ -40,6 +40,7 @@ function drawWave(canvas, spectrum) {
     }
   }
 
+  if (s.bank === 'A') return drawKitPad(g, w, h, s)
   if (!engine.buffer || !region.len) return
 
   // Selected chop gets a lit backdrop.
@@ -91,6 +92,53 @@ function drawWave(canvas, spectrum) {
   }
 }
 
+// Bank A: the selected pad's own sound, with bar lines on the loops.
+function drawKitPad(g, w, h, s) {
+  const pad = s.selected
+  const kp = engine.kitPads[pad - BANK_SIZE]
+  const cols = Math.max(1, Math.floor(w))
+  const data = engine.padPeaks(pad, cols)
+  if (!kp || !data) return
+  const top = 18
+  const amp = (h - top) / 2
+  const cy = top + amp
+  // Quiet stems are drawn at full height so their shape is still readable.
+  let peak = 0.05
+  for (let i = 0; i < data.length; i++) peak = Math.max(peak, Math.abs(data[i]))
+  g.fillStyle = AMBER
+  for (let c = 0; c < cols; c += 2) {
+    const y0 = cy - (data[c * 2 + 1] / peak) * amp * 0.94
+    const y1 = cy - (data[c * 2] / peak) * amp * 0.94
+    g.fillRect(c, y0, 1, Math.max(1, y1 - y0))
+  }
+
+  if (kp.kind === 'loop') {
+    g.font = '16px VT323, monospace'
+    g.textBaseline = 'top'
+    for (let b = 0; b < kp.bars; b++) {
+      const px = Math.round((b / kp.bars) * w)
+      g.fillStyle = '#1a1204'
+      g.fillRect(px - 1, top, 3, h - top)
+      g.fillStyle = AMBER
+      g.fillRect(px, 0, 1, h)
+      g.fillRect(px, 0, 11, 15)
+      g.fillStyle = '#1a1204'
+      g.fillText(String(b + 1), px + 2, 0)
+    }
+  }
+
+  g.fillStyle = '#fff3d6'
+  const loopAt = engine.loopPosition(pad)
+  if (loopAt != null) g.fillRect(Math.round(loopAt * w), 0, 2, h)
+  const now = engine.ctx.currentTime
+  for (const v of engine.voices) {
+    if (v.pad !== pad) continue
+    const played = (now - v.t0) * v.rate
+    if (played < 0 || played > v.dur) continue
+    g.fillRect(Math.round((played / kp.buffer.duration) * w), 0, 2, h)
+  }
+}
+
 function drawOverview(canvas) {
   const { g, w, h } = fit(canvas)
   const { region, source } = engine.getState()
@@ -137,7 +185,14 @@ export default function Screen({ s }) {
   }
 
   const waveDown = (e) => {
-    const { slices } = engine.getState()
+    const { slices, bank, selected } = engine.getState()
+    if (bank === 'A') {
+      if (engine.kindOf(selected) !== 'loop') {
+        engine.trigger(selected)
+        drag.current = { pad: selected }
+      }
+      return
+    }
     if (!slices.length) return
     const { t, pxPerSec } = timeAt(e)
     e.currentTarget.setPointerCapture(e.pointerId)
@@ -168,7 +223,12 @@ export default function Screen({ s }) {
     engine.setRegionStart(t - s.region.len / 2)
   }
 
-  const sourceTag =
+  const kp = s.bank === 'A' ? engine.kitPads[s.selected - BANK_SIZE] : null
+  const kitInfo = !kp ? ''
+    : kp.kind === 'loop' ? `LOOP · ${kp.bars} BARS`
+    : kp.kind === 'shot' ? `SAMPLE · ${kp.buffer.duration.toFixed(2)}S`
+    : 'DRUM · CUT FROM THE RECORD'
+  const sourceTag = kp ? 'BANK A · THE BEAT' :
     s.source.kind === 'preview' ? `PREVIEW ${clock(s.source.duration)}`
     : s.source.kind === 'kit' ? `${s.kit.stems.find((x) => x.id === s.stem).label} ${clock(s.source.duration)}`
     : 'NO SOURCE'
@@ -188,13 +248,13 @@ export default function Screen({ s }) {
           <span>KANYE WEST · THE COLLEGE DROPOUT</span>
           <span>{s.bpm} BPM · {s.pitch > 0 ? '+' : ''}{s.pitch} ST</span>
         </div>
-        <canvas
+        {s.bank === 'B' && <canvas
           ref={over}
           className="lcd-overview"
           onPointerDown={seek}
           onPointerMove={seek}
           aria-label="Whole track. Click to move the chop window."
-        />
+        />}
         <canvas
           ref={wave}
           className="lcd-wave"
@@ -205,7 +265,7 @@ export default function Screen({ s }) {
           aria-label="Chop window. Drag a marker to move a chop, click a chop to hear it."
         />
         <div className="lcd-row">
-          <span>{padName(s.selected)} · {selInfo}</span>
+          <span>{padName(s.selected)} · {kp ? kitInfo : selInfo}</span>
           <span className={s.loading ? 'lcd-blink' : ''}>{s.message}</span>
         </div>
       </div>

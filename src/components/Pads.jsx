@@ -1,10 +1,16 @@
 import { useEffect, useRef } from 'react'
-import { engine, padName, N_CHOPS, N_PADS } from '../audio/engine.js'
+import { engine, padName, BANK_SIZE } from '../audio/engine.js'
 
 export const KEYS = ['1', '2', '3', '4', 'Q', 'W', 'E', 'R', 'A', 'S', 'D', 'F', 'Z', 'X', 'C', 'V']
 
+// The sixteen pad ids of the bank on show.
+export const bankPads = (bank) =>
+  Array.from({ length: BANK_SIZE }, (_, i) => i + (bank === 'A' ? BANK_SIZE : 0))
+
+const TAGS = { loop: 'LOOP', shot: 'SAMPLE', chop: '', drum: 'DRUM' }
+
 export default function Pads({ s }) {
-  const refs = useRef([])
+  const refs = useRef({})
 
   // Pads flash from the engine directly, so sequenced hits light up too
   // without re-rendering anything.
@@ -24,25 +30,30 @@ export default function Pads({ s }) {
 
   return (
     <div className="pads">
-      {Array.from({ length: N_PADS }, (_, i) => {
-        const drum = i >= N_CHOPS
-        const used = s.pattern[i].some(Boolean)
+      {bankPads(s.bank).map((pad, i) => {
+        const kind = engine.kindOf(pad)
+        const loop = s.loops[pad]
+        const used = s.pattern[pad].some(Boolean)
         return (
           <button
-            key={i}
-            ref={(el) => (refs.current[i] = el)}
-            className={`pad${drum ? ' pad-drum' : ''}${s.selected === i ? ' pad-selected' : ''}`}
+            key={pad}
+            ref={(el) => (refs.current[pad] = el)}
+            className={`pad pad-${kind}${s.selected === pad ? ' pad-selected' : ''}${loop ? ` pad-${loop}` : ''}`}
             onPointerDown={(e) => {
               e.currentTarget.setPointerCapture(e.pointerId)
-              engine.trigger(i)
+              engine.trigger(pad)
             }}
-            onPointerUp={() => engine.release(i)}
-            onPointerCancel={() => engine.release(i)}
-            aria-label={`${padName(i)}, key ${KEYS[i]}`}
+            onPointerUp={() => engine.release(pad)}
+            onPointerCancel={() => engine.release(pad)}
+            aria-label={`${padName(pad)}, key ${KEYS[i]}`}
+            aria-pressed={kind === 'loop' ? Boolean(loop) : undefined}
           >
             <span className="pad-key">{KEYS[i]}</span>
             {used && <span className="pad-led" />}
-            <span className="pad-name">{padName(i)}</span>
+            <span className="pad-name">
+              {padName(pad)}
+              {TAGS[kind] && <small>{kind === 'loop' && loop ? (loop === 'on' ? 'PLAYING' : 'WAITING') : TAGS[kind]}</small>}
+            </span>
           </button>
         )
       })}

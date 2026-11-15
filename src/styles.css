@@ -571,3 +571,31 @@ kbd {
 }
 
 .stems { flex-wrap: wrap; }
+
+/* ---- bank A pads ------------------------------------------------------- */
+
+.pad-name small {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  opacity: 0.7;
+}
+
+.pad-loop { --pad: #c9bfa9; background: var(--pad); color: var(--ink); box-shadow: 0 4px 0 #6f6756, inset 0 1px 0 #efe8d8; }
+.pad-loop .pad-key { color: var(--ink); }
+.pad-loop.pad-on { --pad: var(--gold); background: var(--pad); box-shadow: 0 4px 0 #8a6210, inset 0 1px 0 #ffd778, 0 0 22px rgba(232, 169, 35, 0.55); }
+.pad-loop.pad-queued { animation: blink 0.36s steps(2) infinite; }
+.pad-shot { --pad: #46403b; background: var(--pad); }
+
+.seq-note {
+  margin: 0;
+  padding: 14px 0 12px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: #a2968a;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pad-loop.pad-queued { animation: none; outline: 2px dashed var(--ink); outline-offset: -6px; }
+}
