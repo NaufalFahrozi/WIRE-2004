@@ -130,6 +130,54 @@ def cut(drums, sr, row, length):
     return hit * (0.9 / max(1e-6, np.abs(hit).max()))
 
 
+def power(path, sr_expected, lo, hi):
+    """Energy over time of one stem inside a frequency band."""
+    audio, sr = sf.read(path, dtype="float32", always_2d=True)
+    assert sr == sr_expected
+    freqs, times, spec = stft(audio.mean(1), sr, nperseg=2048, noverlap=1024, padded=False, boundary=None)
+    keep = (freqs >= lo) & (freqs < hi)
+    return times, (np.abs(spec[keep]) ** 2).sum(0)
+
+
+def find_hook(sr, bpm, first, duration, bars=8):
+    """The stretch of the song where the sample plays with the least rapping
+    over it. A rapped verse puts a lot of energy where a speaking voice sits
+    (85-260 Hz); the sped-up sample vocal lives well above that."""
+    bar = 240 / bpm
+    count = int((duration - first) / bar)
+    t, rap = power(KIT / "vocals.flac", sr, 85, 260)
+    _, voice = power(KIT / "vocals.flac", sr, 450, 4000)
+    _, drums = power(KIT / "drums.flac", sr, 0, 1e9)
+
+    def per_bar(x):
+        v = np.array([x[(t >= first + b * bar) & (t < first + (b + 1) * bar)].sum() for b in range(count)])
+        return v / np.median(v[v > 0])
+
+    rap, voice, drums = per_bar(rap), per_bar(voice), per_bar(drums)
+    best = None
+    for b in range(count - bars + 1):
+        w = slice(b, b + bars)
+        # The sample vocal has to be there, and the drums have to be playing.
+        if voice[w].min() < 0.25 or drums[w].min() < 0.6:
+            continue
+        if best is None or rap[w].sum() < best[0]:
+            best = (rap[w].sum(), b)
+    if best is None:
+        raise SystemExit("no clean stretch found")
+    return best[1]
+
+
+def loop_cut(path, sr, start, seconds, fade_out=0.004):
+    """Cut a stretch of a stem, starting a hair early so the first hit is whole."""
+    audio, _ = sf.read(path, dtype="float32", always_2d=True)
+    a = int(round((start - 0.003) * sr))
+    out = audio[a : a + int(round(seconds * sr))].copy()
+    n_in, n_out = int(0.002 * sr), int(fade_out * sr)
+    out[:n_in] *= np.linspace(0, 1, n_in)[:, None]
+    out[-n_out:] *= np.linspace(1, 0, n_out)[:, None]
+    return out
+
+
 def main():
     drums, sr = sf.read(KIT / "drums.flac", dtype="float32", always_2d=True)
     mono = drums.mean(1)
@@ -177,12 +225,38 @@ def main():
         drum_list.append({"name": "SNARE 2", "file": "snare2.wav"})
         print(f"  SNARE 2: took the one at {row['frame'] * HOP / sr:.2f}s (low {row['low']:.2f} mid {row['mid']:.2f})")
 
+    # The beat, taken apart: eight bars of the cleanest hook, one loop per stem,
+    # and the sample itself (music plus its vocal) cut into one-bar phrases.
     info = sf.info(KIT / "full.flac")
+    bars = 8
+    bar = 4 * beat
+    hook = find_hook(sr, bpm, first, info.duration, bars)
+    hook_start = first + hook * bar
+    print(f"cleanest hook: bars {hook + 1}-{hook + bars}, {hook_start:.2f}s to {hook_start + bars * bar:.2f}s")
+
+    pads = []
+    level = {"drums": 1.0, "bass": 1.0, "other": 1.0, "vocals": 1.0}
+    for stem, name in [("drums", "DRUMS"), ("bass", "BASS"), ("other", "MUSIC"), ("vocals", "VOX")]:
+        file = f"loop_{stem}.wav"
+        sf.write(KIT / file, loop_cut(KIT / f"{stem}.flac", sr, hook_start, bars * bar) * level[stem], sr, subtype="PCM_16")
+        pads.append({"name": name, "kind": "loop", "file": file, "bars": bars})
+
+    sample = sf.read(KIT / "other.flac", dtype="float32", always_2d=True)[0] + sf.read(KIT / "vocals.flac", dtype="float32", always_2d=True)[0]
+    sf.write(KIT / "_sample.flac", np.clip(sample, -1, 1), sr, subtype="PCM_16")
+    for i in range(bars):
+        file = f"phrase{i + 1}.wav"
+        sf.write(KIT / file, loop_cut(KIT / "_sample.flac", sr, hook_start + i * bar, bar, fade_out=0.02), sr, subtype="PCM_16")
+        pads.append({"name": f"PHRASE {i + 1}", "kind": "shot", "file": file})
+    (KIT / "_sample.flac").unlink()
+    pads += [{"name": d["name"], "kind": "drum", "file": d["file"]} for d in drum_list]
+
     kit = {
         "title": "Through the Wire",
         "bpm": round(float(bpm), 3),
         "firstBeat": round(float(first), 4),
         "duration": round(info.duration, 3),
+        "start": round(float(hook_start), 4),
+        "pads": pads,
         "stems": [
             {"id": "full", "label": "FULL MIX", "file": "full.flac"},
             {"id": "nodrums", "label": "NO DRUMS", "file": "nodrums.flac"},

@@ -44,6 +44,8 @@ def main(src):
         "vocals": stems["vocals"],
         "music": stems["bass"] + stems["other"],
         "drums": stems["drums"],
+        "bass": stems["bass"],
+        "other": stems["other"],
     }
     for name, data in files.items():
         sf.write(OUT / f"{name}.flac", np.clip(data, -1, 1), sr, subtype="PCM_16")
