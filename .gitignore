@@ -1,0 +1,13 @@
+node_modules
+dist
+.vite
+*.log
+.claude/settings.local.json
+
+# Audio never goes in the repo. The app streams the official preview
+# at runtime, and full tracks are loaded from the listener's own file.
+*.mp3
+*.wav
+*.m4a
+*.flac
+*.ogg
