@@ -2,7 +2,6 @@
 
 import { detectOnsets, gridSlices, peaks } from './slicer.js'
 import { playDrum, DRUMS } from './drums.js'
-import { saveTrack, loadTrack, clearTrack } from './store.js'
 
 export const N_CHOPS = 12
 export const N_PADS = 16
@@ -50,11 +49,15 @@ class Engine {
     this.skip = new Set()
     this.taps = []
     this.saveTimer = null
+    this.drumBuffers = []
+    this.bufferVersion = 0
 
     this.state = {
       loading: false,
       message: 'POWER ON',
       source: { kind: 'none', name: '', duration: 0 },
+      kit: null,
+      stem: 'full',
       region: { start: 0, len: 0 },
       slices: [],
       sliceMode: 'auto',
@@ -90,11 +93,11 @@ class Engine {
   }
 
   persist() {
-    const { pattern, pitch, tone, volume, swing, bpm, choke, gate, sliceMode } = this.state
+    const { pattern, pitch, tone, volume, swing, bpm, choke, gate, sliceMode, stem } = this.state
     try {
       localStorage.setItem(
         SETTINGS_KEY,
-        JSON.stringify({ pattern, pitch, tone, volume, swing, bpm, choke, gate, sliceMode }),
+        JSON.stringify({ pattern, pitch, tone, volume, swing, bpm, choke, gate, sliceMode, stem }),
       )
     } catch {}
   }
@@ -152,14 +155,53 @@ class Engine {
     if (this.booted) return
     this.booted = true
     this.ensureCtx()
-    try {
-      const saved = await loadTrack()
-      if (saved?.blob) {
-        await this.decode(await saved.blob.arrayBuffer(), { kind: 'file', name: saved.name })
-        return
-      }
-    } catch {}
+    if (await this.loadKit()) return
     await this.loadPreview()
+  }
+
+  // The kit is what tools/build_kit.py makes from the record: stems of the
+  // track plus drum hits lifted out of it. Without one (a fresh clone has no
+  // audio in it) the app falls back to Apple's 30-second preview.
+  async loadKit() {
+    try {
+      const res = await fetch('/kit/kit.json', { cache: 'no-store' })
+      if (!res.ok || !(res.headers.get('content-type') || '').includes('json')) return false
+      const kit = await res.json()
+      this.set({ loading: true, message: 'LOADING THE KIT CUT FROM THE RECORD' })
+      this.drumBuffers = await Promise.all(kit.drums.map((d) => this.fetchAudio(`/kit/${d.file}`)))
+      const stem = kit.stems.some((x) => x.id === this.state.stem) ? this.state.stem : kit.stems[0].id
+      const buffer = await this.fetchAudio(`/kit/${kit.stems.find((x) => x.id === stem).file}`)
+      this.set({ kit, stem, bpm: Math.round(kit.bpm), sliceMode: 'grid' })
+      this.useBuffer(buffer, { kind: 'kit', name: kit.title }, 'KIT LOADED. EVERY SOUND IS FROM THE RECORD')
+      return true
+    } catch {
+      this.drumBuffers = []
+      return false
+    }
+  }
+
+  async fetchAudio(url) {
+    const res = await fetch(url)
+    if (!res.ok) throw new Error(url)
+    return this.ensureCtx().decodeAudioData(await res.arrayBuffer())
+  }
+
+  // Swap which stem the chops are cut from. Chop points stay where they are.
+  async setStem(id) {
+    const { kit } = this.state
+    const stem = kit?.stems.find((x) => x.id === id)
+    if (!stem || this.state.loading) return
+    this.set({ loading: true, message: `LOADING ${stem.label}` })
+    try {
+      const buffer = await this.fetchAudio(`/kit/${stem.file}`)
+      this.stopVoices()
+      this.buffer = buffer
+      this.bufferVersion++
+      this.overview = peaks(buffer, 0, buffer.duration, 480)
+      this.set({ loading: false, stem: id, message: `CHOPPING ${stem.label}` })
+    } catch {
+      this.set({ loading: false, message: 'COULD NOT LOAD THAT STEM' })
+    }
   }
 
   async loadPreview() {
@@ -172,39 +214,43 @@ class Engine {
       if (!res.ok) throw new Error('preview unavailable')
       await this.decode(await res.arrayBuffer(), { kind: 'preview', name: 'OFFICIAL PREVIEW' })
     } catch {
-      this.set({ loading: false, message: 'NO SIGNAL. DROP YOUR OWN COPY OF THE SONG HERE' })
+      this.set({ loading: false, message: 'NO SIGNAL. CHECK YOUR CONNECTION AND RELOAD' })
     }
-  }
-
-  async loadFile(file) {
-    this.set({ loading: true, message: `READING ${file.name.toUpperCase()}` })
-    try {
-      await this.decode(await file.arrayBuffer(), { kind: 'file', name: file.name })
-      saveTrack(file, file.name).catch(() => {})
-    } catch {
-      this.set({ loading: false, message: 'COULD NOT READ THAT FILE. TRY MP3, WAV OR M4A' })
-    }
-  }
-
-  async usePreview() {
-    await clearTrack().catch(() => {})
-    await this.loadPreview()
   }
 
   async decode(arrayBuffer, meta) {
     const buffer = await this.ensureCtx().decodeAudioData(arrayBuffer)
+    this.useBuffer(buffer, meta, 'PREVIEW LOADED. HIT A PAD')
+  }
+
+  useBuffer(buffer, meta, message) {
     this.stopVoices()
     this.buffer = buffer
+    this.bufferVersion++
     this.overview = peaks(buffer, 0, buffer.duration, 480)
-    const len = Math.min(buffer.duration, REGION_SECONDS)
-    const region = { start: 0, len }
+    const { kit } = this.state
+    // With a kit the window is six bars on the beat, so every chop is two beats.
+    const len = Math.min(buffer.duration, kit ? (24 * 60) / kit.bpm : REGION_SECONDS)
+    const region = { start: kit ? kit.start ?? kit.firstBeat : 0, len }
     this.set({
       loading: false,
       source: { ...meta, duration: buffer.duration },
       region,
       slices: this.makeSlices(region, this.state.sliceMode),
-      message: meta.kind === 'preview' ? 'PREVIEW LOADED. HIT A PAD' : 'YOUR FILE IS LOADED. HIT A PAD',
+      message,
     })
+  }
+
+  // Nearest bar line that keeps the window inside the song, when the kit
+  // knows where the beats are.
+  snapToBar(t, len) {
+    const { kit } = this.state
+    if (!kit) return t
+    const bar = (4 * 60) / kit.bpm
+    let k = Math.round((t - kit.firstBeat) / bar)
+    while (kit.firstBeat + k * bar < 0) k++
+    while (k > 0 && kit.firstBeat + k * bar + len > this.buffer.duration) k--
+    return kit.firstBeat + k * bar
   }
 
   // ---- chops ---------------------------------------------------------------
@@ -227,7 +273,7 @@ class Engine {
   setRegionStart(start) {
     if (!this.buffer) return
     const len = this.state.region.len
-    const region = { start: Math.max(0, Math.min(this.buffer.duration - len, start)), len }
+    const region = { start: Math.max(0, Math.min(this.buffer.duration - len, this.snapToBar(start, len))), len }
     this.set({ region, slices: this.makeSlices(region, this.state.sliceMode) })
   }
 
@@ -247,7 +293,7 @@ class Engine {
 
   regionPeaks(cols) {
     const { region } = this.state
-    const key = `${region.start}:${region.len}:${cols}:${this.buffer?.length}`
+    const key = `${region.start}:${region.len}:${cols}:${this.bufferVersion}`
     if (this.peakCache.key !== key) {
       this.peakCache = { key, data: this.buffer ? peaks(this.buffer, region.start, region.len, cols) : null }
     }
@@ -277,7 +323,15 @@ class Engine {
     else setTimeout(() => this.hitListeners.forEach((fn) => fn(pad)), delay)
 
     if (pad >= N_CHOPS) {
-      playDrum(ctx, this.drumBus, pad - N_CHOPS, t)
+      const hit = this.drumBuffers[pad - N_CHOPS]
+      if (hit) {
+        const src = ctx.createBufferSource()
+        src.buffer = hit
+        src.connect(this.drumBus)
+        src.start(t)
+      } else {
+        playDrum(ctx, this.drumBus, pad - N_CHOPS, t)
+      }
       return
     }
     if (!this.buffer || pad >= this.state.slices.length) return
@@ -432,7 +486,8 @@ class Engine {
 }
 
 export function padName(pad) {
-  return pad < N_CHOPS ? `CHOP ${String(pad + 1).padStart(2, '0')}` : DRUMS[pad - N_CHOPS]
+  if (pad < N_CHOPS) return `CHOP ${String(pad + 1).padStart(2, '0')}`
+  return engine.state.kit?.drums[pad - N_CHOPS]?.name ?? DRUMS[pad - N_CHOPS]
 }
 
 export const engine = new Engine()

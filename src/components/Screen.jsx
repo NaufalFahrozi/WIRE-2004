@@ -170,12 +170,12 @@ export default function Screen({ s }) {
 
   const sourceTag =
     s.source.kind === 'preview' ? `PREVIEW ${clock(s.source.duration)}`
-    : s.source.kind === 'file' ? `YOUR FILE ${clock(s.source.duration)}`
+    : s.source.kind === 'kit' ? `${s.kit.stems.find((x) => x.id === s.stem).label} ${clock(s.source.duration)}`
     : 'NO SOURCE'
   const chop = s.selected < N_CHOPS && s.slices.length
   const selInfo = chop
     ? `${clock(s.slices[s.selected])} · ${(engine.sliceEnd(s.selected) - s.slices[s.selected]).toFixed(2)}S`
-    : 'SYNTH'
+    : s.kit ? 'CUT FROM THE RECORD' : 'SYNTH'
 
   return (
     <div className="screen">

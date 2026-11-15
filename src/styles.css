@@ -545,21 +545,6 @@ kbd {
 .liner b { color: #f4ead6; font-weight: 500; }
 .liner p { margin: 0; max-width: 60ch; }
 
-.dropzone {
-  position: fixed;
-  inset: 12px;
-  display: grid;
-  place-items: center;
-  border: 3px dashed var(--gold);
-  border-radius: 14px;
-  background: rgba(20, 12, 11, 0.86);
-  color: var(--gold);
-  font-family: var(--label);
-  font-size: 56px;
-  font-weight: 700;
-  pointer-events: none;
-}
-
 /* ---- small screens ----------------------------------------------------- */
 
 @media (max-width: 900px) {
@@ -584,3 +569,5 @@ kbd {
 @media (prefers-reduced-motion: reduce) {
   .lcd-blink { animation: none; }
 }
+
+.stems { flex-wrap: wrap; }

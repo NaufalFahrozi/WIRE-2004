@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 import { engine } from './audio/engine.js'
 import Screen from './components/Screen.jsx'
 import Pads, { KEYS } from './components/Pads.jsx'
@@ -16,8 +16,6 @@ const pct = (v) => `${Math.round(v * 100)}%`
 
 export default function App() {
   const s = useSyncExternalStore(engine.subscribe, engine.getState)
-  const fileInput = useRef(null)
-  const [dropping, setDropping] = useState(false)
 
   useEffect(() => {
     engine.boot()
@@ -47,23 +45,8 @@ export default function App() {
     }
   }, [])
 
-  const drop = (e) => {
-    e.preventDefault()
-    setDropping(false)
-    const file = e.dataTransfer.files?.[0]
-    if (file) engine.loadFile(file)
-  }
-
   return (
-    <div
-      className="stage"
-      onDragOver={(e) => {
-        e.preventDefault()
-        setDropping(true)
-      }}
-      onDragLeave={(e) => e.currentTarget === e.target && setDropping(false)}
-      onDrop={drop}
-    >
+    <div className="stage">
       <header className="mast">
         <h1>
           <span className="mast-model">WIRE-2004</span>
@@ -131,24 +114,27 @@ export default function App() {
 
           <Pads s={s} />
 
+          {s.kit && (
+            <div className="mode-group stems">
+              <span className="mode-label">STEM</span>
+              {s.kit.stems.map((stem) => (
+                <button
+                  key={stem.id}
+                  className={`btn${s.stem === stem.id ? ' is-on' : ''}`}
+                  onClick={() => engine.setStem(stem.id)}
+                  aria-pressed={s.stem === stem.id}
+                >
+                  {stem.label}
+                </button>
+              ))}
+            </div>
+          )}
+
           <div className="source">
-            <button className="btn" onClick={() => fileInput.current.click()}>LOAD YOUR FILE</button>
-            {s.source.kind === 'file' && (
-              <button className="btn" onClick={() => engine.usePreview()}>BACK TO PREVIEW</button>
-            )}
-            <input
-              ref={fileInput}
-              type="file"
-              accept="audio/*"
-              hidden
-              onChange={(e) => {
-                if (e.target.files[0]) engine.loadFile(e.target.files[0])
-                e.target.value = ''
-              }}
-            />
             <p>
-              Plays Apple's official 30-second preview out of the box. Own the song? Drop your file
-              anywhere on this page to chop the whole thing. It stays in your browser.
+              {s.kit
+                ? 'Every sound here is cut from the record itself. The drums are hits lifted out of the song, and the chops can come from the full mix or any single stem.'
+                : "Running on Apple's official 30-second preview, with synthesized drums standing in for the record's own."}
             </p>
           </div>
         </section>
@@ -175,7 +161,6 @@ export default function App() {
         </div>
       </footer>
 
-      {dropping && <div className="dropzone">DROP THE TRACK</div>}
     </div>
   )
 }
