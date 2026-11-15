@@ -38,7 +38,14 @@ python -m venv --system-site-packages .venv
 .venv/Scripts/python tools/build_kit.py
 ```
 
-`separate.py` splits the song into stems with Demucs (a few minutes on a CPU). `build_kit.py` finds the tempo and the bar lines, then picks the cleanest kick, snare and hi-hat hits out of the drum stem. Both write into `public/kit/`, which is git-ignored, and the app loads it on its own.
+`separate.py` splits the song into stems with Demucs (a few minutes on a CPU). `build_kit.py` then takes the beat apart:
+
+- finds the tempo and the bar lines from the drum stem
+- finds the eight bars where the sample plays with the least rapping over it (a rapped verse puts energy where a speaking voice sits; the sped-up sample vocal lives well above that)
+- cuts those eight bars into one loop per stem, and the sample itself into one-bar phrases
+- picks the cleanest kick, snare and hi-hat hits out of the drum stem
+
+Both write into `public/kit/`, which is git-ignored, and the app loads it on its own.
 
 Without a kit, for example on a fresh clone, the app falls back to Apple's official 30-second preview with a synthesized drum kit standing in.
 
@@ -46,11 +53,12 @@ Without a kit, for example on a fresh clone, the app falls back to Apple's offic
 
 | | |
 | --- | --- |
-| 12 chop pads | Six bars of the song cut on the beat, two beats per chop, or cut on the transients instead |
-| 5 stems | Chop the full mix, the song without drums, the vocals, the music, or the drums alone |
-| 4 drum pads | Kick, snare, hi-hat and a second snare, all taken from the record |
-| Waveform screen | Drag a marker to move a chop, click a chop to hear it, click the strip above to move to another part of the song (it snaps to the bar) |
-| Pitch | Twelve semitones up or down, varispeed, the way chipmunk soul was made |
+| Bank A, the beat | The hook taken apart: drums, bass, music and vocal as four loops that stack in time, the sample as eight one-bar phrases, and four drum hits |
+| Synced loops | A loop you tap comes in on the next bar line and joins at the bar the others have reached. Change the tempo and the loops speed up with it, like tape |
+| Bank B, chop it | Twelve chops you place yourself: six bars cut on the beat, two beats per chop, or cut on the transients instead |
+| 5 stems | In bank B, chop the full mix, the song without drums, the vocals, the music, or the drums alone |
+| Waveform screen | Shows the selected sound with its playhead. In bank B, drag a marker to move a chop and click the strip above to move to another part of the song (it snaps to the bar) |
+| Pitch | Twelve semitones up or down on the samples, varispeed, the way chipmunk soul was made |
 | Tone, swing, volume | Low-pass filter on the sample, shuffle on the sequencer, master level |
 | Choke and gate | Chops cut each other off, and optionally stop when you let go |
 | 16-step sequencer | A pattern per pad, live recording with REC, tap tempo, at the song's own 83 BPM |
@@ -60,10 +68,11 @@ Your pattern and knob settings are saved in the browser.
 ## Keys
 
 ```
-1 2 3 4      chops 1-4
-Q W E R      chops 5-8
-A S D F      chops 9-12
-Z X C V      kick, snare, hat, snare 2
+             Bank A                      Bank B
+1 2 3 4      drums, bass, music, vox     chops 1-4
+Q W E R      phrases 1-4                 chops 5-8
+A S D F      phrases 5-8                 chops 9-12
+Z X C V      kick, snare, hat, snare 2   kick, snare, hat, snare 2
 SPACE        play / stop
 ```
 
