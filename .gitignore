@@ -11,3 +11,8 @@ dist
 *.m4a
 *.flac
 *.ogg
+
+.venv
+public/kit
+*.flac
+.claude/autoharness
