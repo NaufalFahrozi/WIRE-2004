@@ -1,12 +1,12 @@
 {
-  "about": "Where each sung phrase of the sampled stretch starts and ends, in seconds into the source record at its original speed. Found with tools/find_phrases.py: the cuts sit in the gaps where the singer breathes, a little before each phrase begins. match_sample.py cuts one pad per phrase from these.",
+  "about": "Where each sung phrase of the sampled stretch starts and ends, in seconds into the source record at its original speed. Found with tools/find_phrases.py and a closer look at the vocal's loudness around each cut. A line of this chorus opens with a short phrase, then a breath, then the rest: the cut goes before the short phrase, not in the breath after it. match_sample.py cuts one pad per phrase from these.",
   "phrases": [
-    { "name": "LEAD-IN", "from": 191.24, "to": 199.7 },
-    { "name": "LINE 1", "from": 199.7, "to": 204.05 },
-    { "name": "LINE 2", "from": 204.05, "to": 214.33 },
-    { "name": "LINE 3", "from": 214.33, "to": 218.69 },
+    { "name": "LEAD-IN", "from": 191.24, "to": 198.31 },
+    { "name": "LINE 1", "from": 198.31, "to": 204.05 },
+    { "name": "LINE 2", "from": 204.05, "to": 212.95 },
+    { "name": "LINE 3", "from": 212.95, "to": 218.69 },
     { "name": "LINE 4", "from": 218.69, "to": 226.02 },
-    { "name": "LINE 5", "from": 226.02, "to": 238.0 },
+    { "name": "LINE 5", "from": 226.02, "to": 237.05 },
     { "name": "VERSE BED", "from": 237.98, "to": 241.63 },
     { "name": "VERSE VOX", "from": 241.82, "to": 249.2 }
   ]
