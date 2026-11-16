@@ -7,7 +7,21 @@ export const KEYS = ['1', '2', '3', '4', 'Q', 'W', 'E', 'R', 'A', 'S', 'D', 'F',
 export const bankPads = (bank) =>
   Array.from({ length: BANK_SIZE }, (_, i) => i + bankStart(bank))
 
-const TAGS = { loop: 'LOOP', shot: 'SAMPLE', chop: '', drum: 'DRUM', empty: '' }
+const clock = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
+
+// The small line under a pad's name: what it will actually do when you hit it.
+function meta(pad, kind, loop, s) {
+  const kp = engine.kitPads[pad - BANK_SIZE]
+  if (kind === 'loop') return loop === 'on' ? 'playing' : loop === 'queued' ? 'on the bar' : `${kp.bars} bars`
+  if (kind === 'drum') return 'drum'
+  if (kind === 'shot') {
+    // A chop says where in the source it comes from; a phrase says how long it is.
+    const isChop = /^(CHOP|PICKUP)/.test(kp.name)
+    return isChop && kp.source != null ? `at ${clock(kp.source)}` : `${kp.buffer.duration.toFixed(1)} s`
+  }
+  if (kind === 'chop' && pad < s.slices.length) return `${(engine.sliceEnd(pad) - s.slices[pad]).toFixed(1)} s`
+  return ''
+}
 
 export default function Pads({ s }) {
   const refs = useRef({})
@@ -19,10 +33,10 @@ export default function Pads({ s }) {
       engine.onHit((pad) => {
         refs.current[pad]?.animate(
           [
-            { backgroundColor: 'var(--hit)', boxShadow: '0 0 0 2px var(--hit), 0 0 26px var(--hit)', transform: 'translateY(2px)' },
-            { backgroundColor: 'var(--pad)', boxShadow: '0 0 0 0 transparent', transform: 'translateY(0)' },
+            { backgroundColor: 'var(--hit)', transform: 'translateY(2px)' },
+            { backgroundColor: 'var(--pad)', transform: 'translateY(0)' },
           ],
-          { duration: 260, easing: 'ease-out' },
+          { duration: 240, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' },
         )
       }),
     [],
@@ -49,11 +63,13 @@ export default function Pads({ s }) {
             aria-label={kind === 'empty' ? 'Empty pad' : `${padName(pad)}, key ${KEYS[i]}`}
             aria-pressed={kind === 'loop' ? Boolean(loop) : undefined}
           >
-            <span className="pad-key">{KEYS[i]}</span>
-            {used && <span className="pad-led" />}
-            <span className="pad-name">
-              {padName(pad)}
-              {TAGS[kind] && <small>{kind === 'loop' && loop ? (loop === 'on' ? 'PLAYING' : 'WAITING') : TAGS[kind]}</small>}
+            <span className="pad-top">
+              <kbd className="pad-key">{KEYS[i]}</kbd>
+              {used && <span className="pad-led" title="Has steps in the pattern" />}
+            </span>
+            <span className="pad-label">
+              <span className="pad-name">{padName(pad)}</span>
+              <span className="pad-meta">{meta(pad, kind, loop, s)}</span>
             </span>
           </button>
         )

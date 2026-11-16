@@ -208,7 +208,7 @@ class Engine {
       const stem = kit.stems.some((x) => x.id === this.state.stem) ? this.state.stem : kit.stems[0].id
       const buffer = await this.fetchAudio(`/kit/${kit.stems.find((x) => x.id === stem).file}`)
       this.set({ kit, stem, bank: 'A', selected: BANK_SIZE, bpm: Math.round(kit.bpm), sliceMode: 'grid' })
-      this.useBuffer(buffer, { kind: 'kit', name: kit.title }, 'KIT LOADED. EVERY SOUND IS FROM THE RECORD')
+      this.useBuffer(buffer, { kind: 'kit', name: kit.title }, 'READY. TAP SAMPLE, THEN DRUMS AND BASS')
       return true
     } catch {
       this.drumBuffers = []

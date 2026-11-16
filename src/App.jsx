@@ -30,6 +30,21 @@ export default function App() {
         engine.togglePlay()
         return
       }
+      if (e.code === 'Escape') {
+        if (engine.getState().playing) engine.stop()
+        else engine.stopVoices()
+        return
+      }
+      // Left and right step through the banks, unless a knob has the keys.
+      if ((e.code === 'ArrowLeft' || e.code === 'ArrowRight') && e.target.getAttribute?.('role') !== 'slider') {
+        const banks = ['A', 'B', 'C', 'D'].filter((b) => engine.hasBank(b))
+        const next = banks.indexOf(engine.getState().bank) + (e.code === 'ArrowRight' ? 1 : -1)
+        if (banks[next]) {
+          e.preventDefault()
+          engine.setBank(banks[next])
+        }
+        return
+      }
       const key = KEY_CODES.indexOf(e.code)
       if (key >= 0) engine.trigger(bankPads(engine.getState().bank)[key])
     }
@@ -63,7 +78,7 @@ export default function App() {
             <div className="transport">
               <button className={`btn btn-play${s.playing ? ' is-on' : ''}`} onClick={() => engine.togglePlay()}>
                 {s.playing ? 'STOP' : 'PLAY'}
-                <kbd>SPACE</kbd>
+                <kbd className="keycap">Space</kbd>
               </button>
               <button
                 className={`btn btn-rec${s.rec ? ' is-on' : ''}`}
@@ -166,7 +181,7 @@ export default function App() {
         <div>
           <h2>How to play</h2>
           <ul>
-            <li>Keys <b>1 2 3 4 / Q W E R / A S D F / Z X C V</b> match the pads, row by row. <b>Space</b> starts and stops the clock.</li>
+            <li>Keys <b>1 2 3 4 / Q W E R / A S D F / Z X C V</b> match the pads, row by row. <b>Space</b> starts and stops the clock, <b>Esc</b> silences everything, and <b>← →</b> step through the banks.</li>
             <li><b>Bank A</b> is the beat rebuilt. Tap the top row to bring a loop in on the next bar; tap again to drop it out. The sample and the record come in on their pickup, half a bar early. Drums, bass and sample together make the chorus; the record pad lets you check.</li>
             <li><b>Banks B and C</b> are the sample chop by chop, the way it sat on the pads. <b>Bank D</b> is for cutting your own.</li>
             <li>Turn <b>PITCH</b> to re-pitch the chops. Change the tempo and the loops speed up with it, like tape.</li>

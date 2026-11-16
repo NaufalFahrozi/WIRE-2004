@@ -1,23 +1,54 @@
+/*
+  WIRE-2004
+
+  The world is an early-2000s sampler on a studio desk: bone plastic, rubber
+  pads, an amber LCD. The LCD is the one bright thing on the page. Everything
+  around it is quiet: one warm neutral ramp, three text roles on each surface,
+  and a single gold accent that marks what is switched on.
+
+  Spacing sits on a 4px grid.
+*/
+
 :root {
-  --bg: #140c0b;
-  --bg-2: #24120f;
+  /* The desk: a warm near-black. */
+  --bg: #12110f;
+  --text: #efe9de;
+  --text-2: #aaa398;
+  --text-3: #8a847a;
+
+  /* The machine: bone plastic, with ink printed on it. */
   --chassis: #ddd5c2;
-  --chassis-lo: #c3b9a2;
+  --chassis-lo: #cfc6b1;
   --chassis-edge: #8f8672;
-  --ink: #1d1815;
-  --ink-soft: #5d5446;
-  --panel: #231e1b;
+  --ink: #1f1b16;
+  --ink-2: #5e554a;
+
+  /* Its dark panels and keys. */
+  --panel: #1c1a18;
+  --key: #262421;
+  --key-hover: #312e2a;
+  --hairline: rgba(239, 233, 222, 0.08);
+  --highlight: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+
+  /* The LCD, and the one accent. */
   --lcd-bg: #1a1204;
   --lcd: #ffb62e;
   --lcd-dim: #a8731a;
-  --maroon: #7d1f2c;
-  --maroon-hi: #b3303f;
   --gold: #e8a923;
-  --pad: #3b3531;
   --hit: #ffc247;
+  --record: #b3303f;
+
+  /* Pads by what they are: a sample, a loop, a drum. */
+  --pad: #33302c;
+  --pad-loop: #cfc6b1;
+  --pad-drum: #521c24;
+
   --label: 'Barlow Condensed', 'Arial Narrow', sans-serif;
   --body: 'Barlow', system-ui, sans-serif;
   --lcd-font: 'VT323', 'Courier New', monospace;
+
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --quick: 140ms;
 }
 
 * { box-sizing: border-box; }
@@ -29,11 +60,8 @@ html, body {
 
 body {
   min-height: 100vh;
-  color: #e9dfcc;
+  color: var(--text);
   font-family: var(--body);
-  background:
-    radial-gradient(1200px 600px at 50% -10%, var(--bg-2), transparent 70%),
-    var(--bg);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -50,10 +78,12 @@ button {
   outline-offset: 2px;
 }
 
+kbd { font: inherit; }
+
 .stage {
-  max-width: 1240px;
+  max-width: 1280px;
   margin: 0 auto;
-  padding: 28px 16px 56px;
+  padding: 32px 24px 64px;
 }
 
 /* ---- masthead ---------------------------------------------------------- */
@@ -64,80 +94,79 @@ button {
   justify-content: space-between;
   gap: 8px 24px;
   flex-wrap: wrap;
-  margin-bottom: 18px;
+  margin-bottom: 20px;
 }
 
 .mast h1 {
   margin: 0;
   display: flex;
   align-items: baseline;
-  gap: 14px;
+  gap: 12px;
   font-family: var(--label);
   line-height: 1;
 }
 
 .mast-model {
-  font-size: 44px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  color: #f4ead6;
+  font-size: 40px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
   /* the wire: a single line run straight through the name */
   background: linear-gradient(var(--gold), var(--gold)) 0 54% / 100% 2px no-repeat;
 }
 
 .mast-sub {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 500;
-  color: var(--gold);
+  color: var(--text-2);
 }
 
 .mast p {
   margin: 0;
   font-size: 15px;
-  color: #b7a892;
+  color: var(--text-2);
 }
 
 /* ---- chassis ----------------------------------------------------------- */
 
 .unit {
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
-  gap: 22px;
-  padding: 22px;
-  border-radius: 14px;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 24px;
+  padding: 24px;
+  border-radius: 20px;
   background: linear-gradient(180deg, var(--chassis), var(--chassis-lo));
-  box-shadow:
-    inset 0 1px 0 #f4eedf,
-    inset 0 -3px 0 var(--chassis-edge),
-    0 30px 60px -20px #000;
+  box-shadow: inset 0 1px 0 #f4eedf, inset 0 -3px 0 var(--chassis-edge);
   color: var(--ink);
 }
 
 .deck {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 20px;
   min-width: 0;
+}
+
+/* A dark inset panel: the screen bezel, the pad well, the sequencer. */
+.screen,
+.pads,
+.seq {
+  border-radius: 12px;
+  background: var(--panel);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.6);
 }
 
 /* ---- screen ------------------------------------------------------------ */
 
-.screen {
-  padding: 12px;
-  border-radius: 10px;
-  background: var(--panel);
-  box-shadow: inset 0 2px 6px #000;
-}
+.screen { padding: 12px; }
 
 .lcd {
-  padding: 10px 12px 8px;
+  padding: 12px 12px 8px;
   border-radius: 4px;
   background: var(--lcd-bg);
   color: var(--lcd);
   font-family: var(--lcd-font);
   font-size: 20px;
   line-height: 1.1;
-  box-shadow: inset 0 0 30px rgba(255, 150, 20, 0.08);
 }
 
 .lcd-row {
@@ -152,13 +181,13 @@ button {
   text-overflow: ellipsis;
 }
 
+.lcd-row span:first-child { flex-shrink: 0; }
+
 .lcd-row span:last-child {
-  text-align: right;
   flex-shrink: 1;
   min-width: 0;
+  text-align: right;
 }
-
-.lcd-row span:first-child { flex-shrink: 0; }
 
 .lcd-title { font-size: 26px; }
 .lcd-dim { color: var(--lcd-dim); }
@@ -166,8 +195,8 @@ button {
 .lcd-overview {
   display: block;
   width: 100%;
-  height: 26px;
-  margin: 8px 0 6px;
+  height: 24px;
+  margin: 8px 0 4px;
   cursor: pointer;
   touch-action: none;
 }
@@ -175,8 +204,8 @@ button {
 .lcd-wave {
   display: block;
   width: 100%;
-  height: 170px;
-  margin-bottom: 8px;
+  height: 172px;
+  margin: 8px 0;
   border-top: 1px solid rgba(255, 182, 46, 0.25);
   border-bottom: 1px solid rgba(255, 182, 46, 0.25);
   cursor: crosshair;
@@ -184,7 +213,7 @@ button {
 }
 
 .lcd-blink { animation: blink 0.9s steps(2) infinite; }
-@keyframes blink { 50% { opacity: 0.25; } }
+@keyframes blink { 50% { opacity: 0.3; } }
 
 /* ---- buttons ----------------------------------------------------------- */
 
@@ -193,60 +222,70 @@ button {
   align-items: center;
   gap: 8px;
   height: 36px;
-  padding: 0 14px;
-  border-radius: 5px;
-  background: var(--panel);
-  color: #e6dcc8;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: var(--key);
+  color: var(--text);
   font-family: var(--label);
   font-size: 16px;
   font-weight: 600;
-  letter-spacing: 0.04em;
-  box-shadow: 0 2px 0 #000, inset 0 1px 0 #4a423c;
-  transition: transform 0.05s;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.55), var(--highlight);
+  transition: background-color var(--quick) var(--ease), transform 80ms var(--ease);
 }
 
-.btn:active { transform: translateY(2px); box-shadow: inset 0 1px 0 #4a423c; }
+.btn:hover { background: var(--key-hover); }
+.btn:active { transform: translateY(2px); }
 
+/* Switched on: the one accent. */
 .btn.is-on {
   background: var(--gold);
   color: var(--ink);
-  box-shadow: 0 2px 0 #8a6210, inset 0 1px 0 #ffd778;
+  box-shadow: 0 2px 0 #8a6210, inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 
-.btn-play { min-width: 128px; justify-content: space-between; }
-.btn-play.is-on { background: #f4ead6; box-shadow: 0 2px 0 #8f8672, inset 0 1px 0 #fff; }
+.btn-play { min-width: 124px; justify-content: space-between; }
+
+.btn-play.is-on {
+  background: var(--text);
+  box-shadow: 0 2px 0 var(--chassis-edge), inset 0 1px 0 #fff;
+}
 
 .btn-rec.is-on {
-  background: var(--maroon-hi);
+  background: var(--record);
   color: #fff;
-  box-shadow: 0 2px 0 #4d0f18, inset 0 1px 0 #e06a76;
+  box-shadow: 0 2px 0 #4d0f18, inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
-.btn-small { height: 30px; padding: 0 10px; }
+.btn-small { height: 32px; padding: 0 12px; }
 
-kbd {
+/* A key you press on your own keyboard. */
+.keycap {
+  padding: 0 4px;
+  border: 1px solid currentColor;
+  border-radius: 4px;
   font-family: var(--label);
-  font-size: 12px;
-  font-weight: 500;
-  opacity: 0.6;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  opacity: 0.55;
 }
 
 /* ---- transport and knobs ---------------------------------------------- */
 
 .strip {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 18px;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 16px 24px;
 }
 
 .transport {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
-  max-width: 330px;
 }
 
 .tempo {
@@ -257,11 +296,11 @@ kbd {
 }
 
 .tempo-read {
-  min-width: 78px;
+  min-width: 76px;
   text-align: center;
   font-family: var(--label);
-  font-size: 30px;
-  font-weight: 700;
+  font-size: 28px;
+  font-weight: 600;
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
@@ -269,31 +308,32 @@ kbd {
 .tempo-read small {
   margin-left: 4px;
   font-size: 13px;
-  font-weight: 600;
-  color: var(--ink-soft);
+  font-weight: 500;
+  color: var(--ink-2);
 }
 
 .knobs {
   display: flex;
-  gap: 18px;
+  gap: 16px;
 }
 
 .knob {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
-  width: 62px;
+  gap: 4px;
+  width: 64px;
   font-family: var(--label);
 }
 
 .knob-cap {
   position: relative;
-  width: 54px;
-  height: 54px;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 4px;
   border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #4b443f, #1c1815 70%);
-  box-shadow: 0 4px 0 #0c0a09, 0 6px 10px rgba(0, 0, 0, 0.35), inset 0 1px 0 #6a615a;
+  background: radial-gradient(circle at 35% 30%, #46413c, #1c1a18 70%);
+  box-shadow: 0 4px 0 #0c0b0a, inset 0 1px 0 rgba(255, 255, 255, 0.18);
   cursor: ns-resize;
   touch-action: none;
 }
@@ -309,104 +349,113 @@ kbd {
   content: '';
   position: absolute;
   left: 50%;
-  top: 5px;
+  top: 6px;
   width: 3px;
-  height: 15px;
+  height: 14px;
   margin-left: -1.5px;
   border-radius: 2px;
   background: var(--gold);
 }
 
 .knob-label {
-  margin-top: 6px;
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
 }
 
 .knob-value {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
-  color: var(--ink-soft);
+  color: var(--ink-2);
   font-variant-numeric: tabular-nums;
 }
 
 /* ---- sequencer --------------------------------------------------------- */
 
 .seq {
-  padding: 14px;
-  border-radius: 10px;
-  background: var(--panel);
-  color: #e6dcc8;
-  box-shadow: inset 0 2px 6px #000;
+  padding: 16px;
+  color: var(--text);
 }
 
 .seq-head {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
   font-family: var(--label);
 }
 
-.seq-title { font-size: 18px; font-weight: 700; letter-spacing: 0.04em; color: var(--gold); }
-.seq-hint { font-size: 14px; color: #93877a; }
+.seq-title { font-size: 18px; font-weight: 600; letter-spacing: 0.03em; }
+.seq-hint { font-size: 14px; color: var(--text-3); }
 
 .steps {
   display: grid;
   grid-template-columns: repeat(16, minmax(0, 1fr));
-  gap: 5px;
+  gap: 4px;
 }
 
 .step {
-  aspect-ratio: 1 / 1.25;
+  height: 40px;
   padding: 0;
   border-radius: 4px;
-  background: #3a332f;
-  color: #8e8275;
+  background: var(--key);
+  color: var(--text-3);
   font-family: var(--label);
   font-size: 14px;
-  font-weight: 600;
-  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.35);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  transition: background-color var(--quick) var(--ease);
 }
 
-.step-beat { background: #4a403a; color: #c9bba6; }
-.step:nth-child(4n + 1):not(:first-child) { margin-left: 3px; }
-.step-on { background: var(--gold); color: var(--ink); }
-.step-now { outline: 2px solid #fff3d6; outline-offset: -2px; }
+.step:hover { background: var(--key-hover); }
+/* The first step of each beat sits a shade lighter, like the marks on a ruler. */
+.step-beat { background: var(--key-hover); color: var(--text-2); }
+.step:nth-child(4n + 1):not(:first-child) { margin-left: 4px; }
+.step-on, .step-on:hover { background: var(--gold); color: var(--ink); }
+.step-now { outline: 2px solid var(--text); outline-offset: -2px; }
+
+.seq-note {
+  margin: 0;
+  min-height: 40px;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--text-2);
+}
 
 .map {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: repeat(8, auto);
   grid-auto-flow: column;
-  gap: 2px 18px;
-  margin-top: 14px;
+  gap: 0 20px;
+  margin-top: 16px;
 }
 
 .map-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 3px 6px;
-  border-radius: 3px;
+  gap: 12px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 4px;
   background: none;
   text-align: left;
+  transition: background-color var(--quick) var(--ease);
 }
 
-.map-row:hover { background: #2f2925; }
-.map-row-selected { background: #37302b; }
+.map-row:hover { background: var(--key); }
+.map-row-selected, .map-row-selected:hover { background: var(--key-hover); }
 
 .map-name {
-  flex: 0 0 62px;
+  flex: 0 0 72px;
   font-family: var(--label);
   font-size: 13px;
-  font-weight: 600;
-  color: #a2968a;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--text-3);
   white-space: nowrap;
 }
 
-.map-row-selected .map-name { color: var(--gold); }
+.map-row-selected .map-name { color: var(--text); }
 
 .map-cells {
   display: grid;
@@ -418,18 +467,18 @@ kbd {
 .map-cells i {
   height: 8px;
   border-radius: 1px;
-  background: #3d3631;
+  background: var(--key);
 }
 
 .map-cells i.on { background: var(--gold); }
-.map-cells i.now { box-shadow: 0 0 0 1px #fff3d6; }
+.map-cells i.now { box-shadow: 0 0 0 1px var(--text-2); }
 
-/* ---- pads -------------------------------------------------------------- */
+/* ---- bank and mode switches ------------------------------------------- */
 
 .modes {
   display: flex;
   justify-content: space-between;
-  gap: 12px;
+  gap: 12px 24px;
   flex-wrap: wrap;
 }
 
@@ -437,173 +486,193 @@ kbd {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
+/* Silk-screened on the case, so it stays in capitals like the rest of it. */
 .mode-label {
+  min-width: 36px;
   font-family: var(--label);
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 600;
   letter-spacing: 0.06em;
-  color: var(--ink-soft);
+  color: var(--ink-2);
 }
+
+/* ---- pads -------------------------------------------------------------- */
 
 .pads {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-  padding: 14px;
-  border-radius: 10px;
-  background: var(--panel);
-  box-shadow: inset 0 2px 6px #000;
+  gap: 8px;
+  padding: 12px;
 }
 
 .pad {
-  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
   aspect-ratio: 1;
+  min-width: 0;
   padding: 8px;
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--pad);
-  color: #d8cdb9;
+  color: var(--text);
   font-family: var(--label);
   text-align: left;
-  box-shadow: 0 4px 0 #0d0b0a, inset 0 1px 0 #5c534d;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.6), var(--highlight);
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
+  transition: filter var(--quick) var(--ease);
 }
 
-.pad-drum { --pad: #5a1d26; background: var(--pad); box-shadow: 0 4px 0 #26090e, inset 0 1px 0 #8c3540; }
+.pad:hover { filter: brightness(1.12); }
 .pad-selected { outline: 2px solid var(--gold); outline-offset: 2px; }
 
+.pad-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+/* The key that plays it, as a keycap. */
 .pad-key {
-  font-size: 22px;
-  font-weight: 700;
-  line-height: 1;
-  color: #f4ead6;
-}
-
-.pad-name {
-  position: absolute;
-  left: 8px;
-  right: 8px;
-  bottom: 7px;
-  font-size: 14px;
+  min-width: 20px;
+  padding: 0 4px;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.04em;
-  opacity: 0.75;
+  line-height: 18px;
+  text-align: center;
+  opacity: 0.5;
 }
 
+/* Lit when the pad has steps in the pattern. */
 .pad-led {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
+  margin: 4px;
   border-radius: 50%;
   background: var(--gold);
 }
 
-.source {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
+.pad-label { min-width: 0; }
+
+.pad-name {
+  display: block;
+  overflow: hidden;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
+.pad-meta {
+  display: block;
+  min-height: 16px;
+  font-family: var(--body);
+  font-size: 12px;
+  line-height: 16px;
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+
+.pad-drum { --pad: var(--pad-drum); }
+
+.pad-loop {
+  --pad: var(--pad-loop);
+  color: var(--ink);
+  box-shadow: 0 3px 0 #6f6756, inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+/* A loop that is running is lit, the way the button would be. */
+.pad-loop.pad-on {
+  --pad: var(--gold);
+  box-shadow: 0 3px 0 #8a6210, inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.pad-loop.pad-on .pad-meta { opacity: 0.8; }
+.pad-loop.pad-queued { animation: blink 0.5s steps(2) infinite; }
+
+.pad-empty {
+  --pad: #242220;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.6);
+  cursor: default;
+}
+
+.pad-empty:hover { filter: none; }
+.pad-empty .pad-key { opacity: 0.2; }
+
 .source p {
-  flex-basis: 100%;
-  margin: 2px 0 0;
+  margin: 0;
   font-size: 14px;
-  line-height: 1.45;
-  color: var(--ink-soft);
+  line-height: 20px;
+  color: var(--ink-2);
 }
 
 /* ---- liner ------------------------------------------------------------- */
 
 .liner {
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
-  gap: 22px 44px;
-  margin-top: 34px;
-  padding: 0 22px;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 24px 48px;
+  margin-top: 40px;
+  padding: 0 24px;
   font-size: 15px;
-  line-height: 1.6;
-  color: #b7a892;
+  line-height: 24px;
+  color: var(--text-2);
 }
 
 .liner h2 {
   margin: 0 0 8px;
   font-family: var(--label);
   font-size: 18px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  color: var(--gold);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text);
 }
 
-.liner ul { margin: 0; padding-left: 18px; }
+.liner ul { margin: 0; padding-left: 20px; }
 .liner li { margin-bottom: 4px; }
-.liner b { color: #f4ead6; font-weight: 500; }
+.liner b { color: var(--text); font-weight: 500; }
 .liner p { margin: 0; max-width: 60ch; }
 
 /* ---- small screens ----------------------------------------------------- */
 
 @media (max-width: 900px) {
-  .unit, .liner { grid-template-columns: minmax(0, 1fr); }
+  .stage { padding: 24px 16px 48px; }
+  .liner { grid-template-columns: minmax(0, 1fr); padding: 0 4px; }
   /* One column: the pads come straight after the screen and its controls,
      and the step sequencer goes below them. */
-  .unit { display: flex; flex-direction: column; gap: 18px; }
+  .unit { display: flex; flex-direction: column; gap: 20px; padding: 16px; }
   .deck { display: contents; }
   .seq { order: 1; }
-  .unit { padding: 14px; }
-  .liner { padding: 0 4px; }
   .mast-model { font-size: 36px; }
 }
 
 @media (max-width: 560px) {
   .lcd { font-size: 17px; }
   .lcd-title { font-size: 21px; }
-  .lcd-wave { height: 130px; }
-  .knobs { gap: 8px; width: 100%; justify-content: space-between; }
+  .lcd-wave { height: 132px; }
+  .strip { grid-template-columns: minmax(0, 1fr); }
+  .knobs { gap: 8px; justify-content: space-between; }
   .steps { grid-template-columns: repeat(8, minmax(0, 1fr)); }
   .step:nth-child(4n + 1):not(:first-child) { margin-left: 0; }
-  .map { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-auto-flow: row; }
-  .pads { gap: 8px; padding: 10px; }
-  .pad-name { font-size: 12px; }
+  .map { grid-template-columns: minmax(0, 1fr); grid-template-rows: none !important; grid-auto-flow: row; }
+  .pad { padding: 4px 8px; }
+  /* No keyboard on a phone: the keycaps go, and long names take two lines. */
+  .pad-key { display: none; }
+  .pad-top { min-height: 16px; justify-content: flex-end; }
+  .pad-name { font-size: 14px; line-height: 16px; white-space: normal; }
+  .pad-meta { font-size: 11px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .lcd-blink { animation: none; }
-}
-
-.stems { flex-wrap: wrap; }
-
-/* ---- bank A pads ------------------------------------------------------- */
-
-.pad-name small {
-  display: block;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  opacity: 0.7;
-}
-
-.pad-loop { --pad: #c9bfa9; background: var(--pad); color: var(--ink); box-shadow: 0 4px 0 #6f6756, inset 0 1px 0 #efe8d8; }
-.pad-loop .pad-key { color: var(--ink); }
-.pad-loop.pad-on { --pad: var(--gold); background: var(--pad); box-shadow: 0 4px 0 #8a6210, inset 0 1px 0 #ffd778, 0 0 22px rgba(232, 169, 35, 0.55); }
-.pad-loop.pad-queued { animation: blink 0.36s steps(2) infinite; }
-.pad-shot { --pad: #46403b; background: var(--pad); }
-
-.seq-note {
-  margin: 0;
-  padding: 14px 0 12px;
-  font-size: 14px;
-  line-height: 1.45;
-  color: #a2968a;
-}
-
-@media (prefers-reduced-motion: reduce) {
   .pad-loop.pad-queued { animation: none; outline: 2px dashed var(--ink); outline-offset: -6px; }
+  .btn, .pad, .step, .map-row { transition: none; }
 }
-
-.pad-empty { --pad: #2a2623; background: var(--pad); box-shadow: inset 0 2px 5px #000; cursor: default; }
-.pad-empty .pad-key { opacity: 0.25; }
