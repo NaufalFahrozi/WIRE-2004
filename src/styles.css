@@ -549,6 +549,11 @@ kbd {
 
 @media (max-width: 900px) {
   .unit, .liner { grid-template-columns: minmax(0, 1fr); }
+  /* One column: the pads come straight after the screen and its controls,
+     and the step sequencer goes below them. */
+  .unit { display: flex; flex-direction: column; gap: 18px; }
+  .deck { display: contents; }
+  .seq { order: 1; }
   .unit { padding: 14px; }
   .liner { padding: 0 4px; }
   .mast-model { font-size: 36px; }

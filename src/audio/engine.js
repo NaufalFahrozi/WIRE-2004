@@ -610,7 +610,10 @@ class Engine {
 
   schedule() {
     const ctx = this.ctx
-    while (this.nextTime < ctx.currentTime + 0.12) {
+    // Browsers slow timers right down in a background tab. Schedule much
+    // further ahead there, so the beat does not stutter when you look away.
+    const ahead = document.hidden ? 1.6 : 0.12
+    while (this.nextTime < ctx.currentTime + ahead) {
       const s = this.nextStep
       const t = this.nextTime + (s % 2 ? this.state.swing * this.stepDur * 0.5 : 0)
       for (const [pad, status] of Object.entries(this.state.loops)) {

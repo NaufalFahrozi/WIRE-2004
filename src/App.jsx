@@ -144,7 +144,9 @@ export default function App() {
 
           <div className="source">
             <p>
-              {!s.kit
+              {s.source.kind === 'none'
+                ? (s.loading ? 'Loading the kit…' : 'Nothing loaded. Check your connection and reload.')
+                : !s.kit
                 ? "Running on Apple's official 30-second preview, with synthesized drums standing in for the record's own."
                 : s.bank === FREE_BANK
                   ? 'Twelve chops you place yourself, anywhere in the song, cut from the full mix or from any single stem.'

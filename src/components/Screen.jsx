@@ -122,9 +122,10 @@ function drawKitPad(g, w, h, s) {
       g.fillRect(px - 1, top, 3, h - top)
       g.fillStyle = AMBER
       g.fillRect(px, 0, 1, h)
-      g.fillRect(px, 0, 11, 15)
+      const label = String(b + 1)
+      g.fillRect(px, 0, 4 + label.length * 7, 15)
       g.fillStyle = '#1a1204'
-      g.fillText(String(b + 1), px + 2, 0)
+      g.fillText(label, px + 2, 0)
     }
   }
 
@@ -233,7 +234,7 @@ export default function Screen({ s }) {
   const sourceTag = kp ? (s.bank === 'A' ? 'BANK A · THE BEAT' : `BANK ${s.bank} · THE CHOPS`) :
     s.source.kind === 'preview' ? `PREVIEW ${clock(s.source.duration)}`
     : s.source.kind === 'kit' ? `${s.kit.stems.find((x) => x.id === s.stem).label} ${clock(s.source.duration)}`
-    : 'NO SOURCE'
+    : s.loading ? 'LOADING' : 'NO SOURCE'
   const chop = s.selected < N_CHOPS && s.slices.length
   const selInfo = chop
     ? `${clock(s.slices[s.selected])} · ${(engine.sliceEnd(s.selected) - s.slices[s.selected]).toFixed(2)}S`

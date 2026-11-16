@@ -1,10 +1,26 @@
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 
 // Rotary control. Drag up or down, scroll, or use the arrow keys.
 // Double-click returns it to its default.
 export default function Knob({ label, value, min, max, step = 0.01, reset, onChange, format }) {
   const drag = useRef(null)
+  const cap = useRef(null)
+  const live = useRef({})
+  live.current = { value, onChange }
   const span = max - min
+
+  // The wheel turns the knob. It has to be a native, non-passive listener:
+  // otherwise the page scrolls along with it.
+  useEffect(() => {
+    const el = cap.current
+    const wheel = (e) => {
+      e.preventDefault()
+      const { value, onChange } = live.current
+      onChange(Math.max(min, Math.min(max, value + (e.deltaY < 0 ? step : -step))))
+    }
+    el.addEventListener('wheel', wheel, { passive: false })
+    return () => el.removeEventListener('wheel', wheel)
+  }, [min, max, step])
   const frac = (value - min) / span
   const clamp = (v) => Math.max(min, Math.min(max, v))
 
@@ -28,6 +44,7 @@ export default function Knob({ label, value, min, max, step = 0.01, reset, onCha
   return (
     <div className="knob">
       <div
+        ref={cap}
         className="knob-cap"
         role="slider"
         tabIndex={0}
@@ -42,7 +59,6 @@ export default function Knob({ label, value, min, max, step = 0.01, reset, onCha
         onPointerUp={up}
         onPointerCancel={up}
         onDoubleClick={() => onChange(reset)}
-        onWheel={(e) => onChange(clamp(value + (e.deltaY < 0 ? step : -step)))}
         onKeyDown={key}
       >
         <span className="knob-mark" />
