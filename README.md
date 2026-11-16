@@ -8,11 +8,20 @@
   <img alt="Web Audio API" src="https://img.shields.io/badge/Web_Audio-API-1f1513?style=for-the-badge&labelColor=1f1513&color=3a2b27">
   <img alt="Python" src="https://img.shields.io/badge/Python-analysis-1f1513?style=for-the-badge&logo=python&logoColor=e8a923&labelColor=1f1513&color=3a2b27">
   <img alt="No audio in this repository" src="https://img.shields.io/badge/audio_in_repo-none-1f1513?style=for-the-badge&labelColor=1f1513&color=7d1f2c">
+  <a href="https://github.com/NaufalFahrozi/WIRE-2004/actions/workflows/ci.yml"><img alt="CI status" src="https://img.shields.io/github/actions/workflow/status/NaufalFahrozi/WIRE-2004/ci.yml?branch=main&style=for-the-badge&label=tests&labelColor=1f1513&color=3a2b27"></a>
   <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-1f1513?style=for-the-badge&labelColor=1f1513&color=3a2b27"></a>
 </p>
 
 <p align="center">
-  <a href="https://wire2004.vercel.app"><b>wire2004.vercel.app</b></a>
+  <a href="https://wire2004.vercel.app"><b>Live site</b></a> ·
+  <a href="#what-it-found">What it found</a> ·
+  <a href="docs/how-it-was-worked-out.md">How it was worked out</a> ·
+  <a href="#build-the-kit">Build the kit</a> ·
+  <a href="CHANGELOG.md">Changelog</a>
+</p>
+
+<p align="center">
+  <img src="docs/demo.gif" alt="The sampler running: the drum, bass and sample loops lit, the playhead crossing the waveform, pads flashing as they are hit" width="100%">
 </p>
 
 **WIRE-2004 reverse-engineers one beat and puts it on pads.** It lines Kanye West's "Through the Wire" up against the record it samples, Chaka Khan's "Through the Fire", works out exactly how the beat was built, and rebuilds it in the browser from the source record: every chop, at the speed, level and tone it has on the finished song.
@@ -20,10 +29,6 @@
 Most sampler demos slice a song into equal pieces. This one finds the pieces that were actually used.
 
 > **About the live site.** It runs the same code, but no recording is published with it. There you get Apple's official 30-second preview to chop and a synthesized drum kit. The rebuilt beat, with the chops off the source record, appears once you [build the kit](#build-the-kit) from your own copies of the two songs.
-
-<p align="center">
-  <img src="docs/screenshot.png" alt="The sampler with the drum, bass and sample loops running: an amber waveform screen with twelve numbered bars, four banks of pads, knobs for pitch, tone, swing and volume, and a step sequencer" width="100%">
-</p>
 
 ## What it found
 
@@ -60,6 +65,10 @@ The source was played by people and its tempo wanders. A straight copy would sli
 
 ## What you can do with it
 
+<p align="center">
+  <img src="docs/screenshot.png" alt="The sampler with the drum, bass and sample loops running: an amber waveform screen with twelve numbered bars, four banks of pads, knobs for pitch, tone, swing and volume, and a step sequencer" width="100%">
+</p>
+
 | Bank | What is on the pads |
 | --- | --- |
 | **A · The Beat** | The chorus rebuilt. Four twelve-bar loops that stack in time: the added **drums**, the added **bass**, the **sample** cut clean from the source, and the finished **record** to check your rebuild against. Under them, the sample phrase by phrase: the lead-in, the five lines of the chorus, the bar of music the verses loop, and the sung phrase the verses loop. Then four drum hits |
@@ -86,6 +95,8 @@ ESC          silence everything
 ```
 
 ## How it was worked out
+
+The short version is below. The long one, with the full chop map, is in [docs/how-it-was-worked-out.md](docs/how-it-was-worked-out.md).
 
 ```mermaid
 flowchart LR
@@ -156,6 +167,7 @@ python -m venv --system-site-packages .venv
 | `build_kit.py` again | Cuts the drum, bass and record loops to the chorus's full length and lays out the pads |
 | `find_phrases.py` | Optional. Lists the sung phrases in a stretch of the source and the breaths between them, for filling in `tools/phrases.json` |
 | `docs/make_figures.py` | Optional. Redraws the figures on this page from the measurements |
+| `selftest.py` | Checks the matcher against a made-up piece of music with a known answer. Needs no recordings |
 
 Stop after the second step and you still get a playable kit, with the sample pads taken from the stems of the finished song instead of the source.
 
@@ -166,6 +178,18 @@ Stop after the second step and you still get a playable kit, with the sample pad
 - **Estimated.** The treble roll-off is measured where drums and vocals cover much of the sample, so the 5 kHz corner is a best fit.
 - **Separated, not original.** The drum and bass loops come from Demucs stems of the finished song, because those parts are not on the source record. Some bleed is audible.
 - **Not rebuilt.** The verse loops are mapped, and their raw material is on the pads, but they are not offered as ready-made loops.
+
+## Tests
+
+```bash
+npm test
+```
+
+```bash
+python tools/selftest.py
+```
+
+The first covers the slicer. The second makes up a piece of music, speeds a stretch of it up 1.26 times, buries it in noise, and checks that the matcher finds the speed and the place: it lands within 0.1% and a tenth of a millisecond. Both run on every push.
 
 ## Inside
 
@@ -179,10 +203,15 @@ tools/build_kit.py       stems -> tempo, bar lines, loops, drum hits, kit.json
 tools/match_sample.py    source record -> speed, chop map, the chops themselves
 tools/find_phrases.py    source record -> where each sung phrase starts and ends
 tools/phrases.json       the phrase cuts used for the pads
+tools/selftest.py        the matcher, checked against a known answer
 docs/make_figures.py     measurements -> the figures on this page
 ```
 
 React and Vite, with no other runtime dependencies. All sound goes through the Web Audio API: a lookahead scheduler drives the sequencer and starts loops on the bar line, sample-accurately.
+
+## Contributing
+
+Reports of a cut that sounds wrong are the most useful thing you can send: the cuts are measured, not heard. See [CONTRIBUTING.md](CONTRIBUTING.md). One rule: no audio in the repository.
 
 ## Licence
 
