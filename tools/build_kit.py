@@ -258,15 +258,18 @@ def main():
     map_path = KIT / "sample_map.json"
     if map_path.exists():
         sample_info = json.loads(map_path.read_text())
+        # In the loop the sample sits at its level in the mix. Played alone
+        # on a pad it wants to be as loud as the drum hits.
+        shot_gain = round(min(8.0, 0.8 / float(np.abs(sf.read(KIT / "source_loop.wav")[0]).max())), 2)
         sf.write(KIT / "loop_full.wav", loop_cut(KIT / "full.flac", sr, hook_start, bars * bar), sr, subtype="PCM_16")
         pads = pads[:2] + [
             {"name": "SAMPLE", "kind": "loop", "file": "source_loop.wav", "bars": bars},
             {"name": "RECORD", "kind": "loop", "file": "loop_full.wav", "bars": bars},
         ]
-        pads += [{"name": f"PHRASE {i + 1}", "kind": "shot", "file": f"source_phrase{i + 1}.wav", "gain": 1.8,
+        pads += [{"name": f"PHRASE {i + 1}", "kind": "shot", "file": f"source_phrase{i + 1}.wav", "gain": shot_gain,
                   "source": sample_info["chops"][i * 2]["source"]} for i in range(bars)]
         pads += drum_pads
-        pads += [{"name": f"CHOP {c['n']:02d}", "kind": "shot", "file": f"source_chop{c['n']:02d}.wav", "gain": 1.8,
+        pads += [{"name": f"CHOP {c['n']:02d}", "kind": "shot", "file": f"source_chop{c['n']:02d}.wav", "gain": shot_gain,
                   "source": c["source"]} for c in sample_info["chops"]]
         print(f"sample traced to {sample_info['artist']}, {sample_info['title']}: {len(sample_info['chops'])} chops on bank B")
 

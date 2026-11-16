@@ -27,7 +27,7 @@ from pathlib import Path
 
 import numpy as np
 import soundfile as sf
-from scipy.signal import butter, correlate, fftconvolve, resample_poly, sosfiltfilt, stft
+from scipy.signal import butter, correlate, csd, fftconvolve, resample_poly, sosfiltfilt, stft, welch
 
 KIT = Path(__file__).resolve().parent.parent / "public" / "kit"
 BARS = 8
@@ -214,27 +214,83 @@ def main(src_path):
         c["source"] = src0 + (c["t"] + c["lag"]) * rate
     flipped = float(np.median([c["corr"] for c in sure])) < 0 if sure else False
 
-    # Cut the chops out of the source, sped up, at the level and polarity they
-    # have in the record, so they stack with the other loops the way they do
-    # on the record.
+    # Cut the chops out of the source, sped up.
     n_out = int(round(chop_len * sr))
     lead = 0.003
-    cuts = []
-    for c in chops:
-        seg = sped_source(source, src_sr, sr, rate, c["source"] - lead * rate, chop_len + 0.05, 0.05)
-        seg = seg[int(round(0.05 * sr)) :][:n_out]
-        if seg.shape[1] == 1:
-            seg = np.repeat(seg, 2, axis=1)
-        cuts.append(seg.astype(np.float32))
-    rebuilt = np.concatenate(cuts)
     lead_n = int(round(lead * sr))
-    # Level: as loud as everything in the hook that is not drums or bass,
-    # which is nearly all sample. Polarity: whichever way round it is in the mix.
-    ref = (other + vocals)[a - lead_n : a - lead_n + len(rebuilt)]
-    gain = float(np.sqrt(np.mean(ref**2) / np.mean(rebuilt**2))) * (-1 if flipped else 1)
+
+    def cut_all():
+        out = []
+        for c in chops:
+            seg = sped_source(source, src_sr, sr, rate, c["source"] - lead * rate, chop_len + 0.05, 0.05)
+            seg = seg[int(round(0.05 * sr)) :][:n_out]
+            if seg.shape[1] == 1:
+                seg = np.repeat(seg, 2, axis=1)
+            out.append(seg.astype(np.float64))
+        return out
+
+    refs = [full[a + i * n_out - lead_n : a + (i + 1) * n_out - lead_n].mean(1) for i in range(n_chops)]
+    mid_band = butter(4, [300, 2500], btype="band", fs=sr, output="sos")
+    # The first placing was done at a quarter of the sample rate. Tighten each
+    # chop to the nearest sample, twice over, and cut again.
+    for _ in range(2):
+        for c, seg, ref in zip(chops, cut_all(), refs):
+            x = correlate(sosfiltfilt(mid_band, ref), sosfiltfilt(mid_band, seg.mean(1)), mode="same")
+            centre = len(x) // 2
+            k = int(np.abs(x[centre - 40 : centre + 41]).argmax()) - 40
+            c["source"] -= k / sr * rate
+            c["lag"] -= k / sr
+    raw = cut_all()
+
+    # How was it sampled? Samplers of the time were often fed one channel.
+    # Ask which blend of the source's left and right is in the record.
+    lr = np.concatenate([sosfiltfilt(mid_band, seg, axis=0) for seg in raw])
+    want = np.concatenate([sosfiltfilt(mid_band, r) for r in refs])
+    weights, *_ = np.linalg.lstsq(lr, want, rcond=None)
+    share = np.abs(weights) / np.abs(weights).sum()
+    if share.min() < 0.25:
+        channel = int(share.argmax())
+        blend = np.eye(2)[channel]
+        how = f"mono, from the {'left' if channel == 0 else 'right'} channel only"
+    else:
+        blend = np.sign(weights) * share
+        how = f"mono, left {share[0]:.0%} and right {share[1]:.0%}"
+    mono = [seg @ blend for seg in raw]
+
+    # How loud, and with what tone? Compare the sampled channel with the
+    # record one octave at a time, each chop nudged into exact alignment first.
+    pxy = pxx = 0
+    for seg, ref in zip(mono, refs):
+        c = correlate(sosfiltfilt(mid_band, ref), sosfiltfilt(mid_band, seg), mode="same")
+        mid = len(c) // 2
+        k = int(np.abs(c[mid - 40 : mid + 41]).argmax()) - 40
+        seg = np.roll(seg, k)
+        freqs, cross = csd(seg, ref, sr, nperseg=2048)
+        pxy = pxy + cross
+        pxx = pxx + welch(seg, sr, nperseg=2048)[1]
+
+    def in_band(lo, hi):
+        keep = (freqs >= lo) & (freqs < hi)
+        return complex(pxy[keep].sum() / pxx[keep].sum())
+
+    core = in_band(1000, 4000)
+    gain = abs(core) * (-1 if core.real < 0 else 1)
+    flipped = gain < 0
+    top = 20 * np.log10(abs(in_band(4000, 8000)) / abs(core))
+    air = 20 * np.log10(abs(in_band(8000, 16000)) / abs(core))
+    print(f"sampled {how}{', polarity flipped' if flipped else ''}; sits at {abs(gain):.2f}x in the mix")
+    print(f"tone:   {top:+.1f} dB at 4-8 kHz, {air:+.1f} dB above 8 kHz")
+    cutoff = None
+    if top < -1.5 and air < -9:
+        # The highs are rolled off the way a sampler's filter does it. A
+        # third-order low-pass set to give the measured loss at 5.7 kHz.
+        cutoff = float(np.clip(5657 / (10 ** (-top / 10) - 1) ** (1 / 6), 2500, 12000))
+        lowpass = butter(3, cutoff, btype="low", fs=sr, output="sos")
+        mono = [sosfiltfilt(lowpass, seg) for seg in mono]
+        print(f"        matched with a low-pass at {cutoff:.0f} Hz")
+    cuts = [np.repeat(seg[:, None], 2, axis=1).astype(np.float32) for seg in mono]
     match = float(np.mean([abs(c["corr"]) for c in sure])) if sure else 0.0
-    print(f"check:  {len(sure)} of {n_chops} chops found in the record's waveform, mean correlation {match:.2f}")
-    print(f"        sample sits at {abs(gain):.2f}x in the mix{', polarity flipped' if flipped else ''}")
+    print(f"check:  {len(sure)} of {n_chops} chops found in the record's waveform")
 
     fade = int(0.002 * sr)
     for seg in cuts:
@@ -262,7 +318,10 @@ def main(src_path):
         "rate": round(float(rate), 5),
         "semitones": round(float(semis), 2),
         "correlation": round(match, 3),
-        "flipped": flipped,
+        "flipped": bool(flipped),
+        "sampled": how,
+        "gain": round(abs(float(gain)), 3),
+        "lowpass_hz": cutoff and round(cutoff),
         "chop_beats": CHOP_BEATS,
         "level": round(scale, 4),
         "chops": [{"n": c["n"], "source": round(float(c["source"]), 4), "shift_ms": round(c["lag"] * 1000, 1),

@@ -11,10 +11,14 @@ Lining the two recordings up shows it. The source recording is inside the finish
 - "Through the Fire" runs **1.2595 times faster, +3.99 semitones**: four semitones up on the sampler.
 - The eight-bar hook is the last chorus of the source, from **3:20.5**, cut into **sixteen chops of two beats each**.
 - The chops play in order, but each is **re-triggered on the grid**. The source was played by people and drifts; against a steady 83 BPM the chops land between 54 ms early and 96 ms late of where a straight copy would put them.
-- The sample sits in the mix with its polarity flipped.
+- It was sampled **in mono, from the left channel only**. The right channel of the source is not in the record.
+- The highs are rolled off, about 6 dB down at 4-8 kHz and gone above 8 kHz, the way a sampler's filter does it. Below that the tone is flat.
+- The sample sits at 0.27 times its original level, with its polarity flipped.
 - New drums and bass are laid on top.
 
-All sixteen chops were found in the record's waveform, each 10 to 20 standard deviations clear of chance.
+All sixteen chops were found in the record's waveform, each 10 to 20 standard deviations clear of chance. As a check, the rebuilt sample correlates 0.59 with the finished record between 1 and 4 kHz across the whole hook, and subtracting it takes 1.8 dB out of that band.
+
+The pads carry the sample the way it is on the record: left channel, sped up, low-passed, at that level.
 
 ## Run it
 

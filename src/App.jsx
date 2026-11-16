@@ -175,8 +175,9 @@ export default function App() {
             In October 2002 Kanye West fell asleep at the wheel in Los Angeles and shattered his jaw.
             Two weeks later, with it still wired shut, he recorded this song over Chaka Khan's
             “Through the Fire”. Lining the two records up shows how the beat was made: her record
-            runs four semitones fast, cut into two-beat chops from the last chorus, each chop
-            re-triggered on the grid, with new drums and bass laid on top. Those chops are on bank B.
+            runs four semitones fast, sampled in mono off the left channel with the highs rolled
+            off, cut into two-beat chops from the last chorus, each chop re-triggered on the grid,
+            with new drums and bass laid on top. Those chops are on bank B.
           </p>
         </div>
       </footer>
