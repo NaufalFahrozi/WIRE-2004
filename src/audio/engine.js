@@ -1,25 +1,31 @@
 // WIRE-2004 audio engine.
 //
-// Two banks of sixteen pads share one clock:
-//   Bank A, "the beat": the record taken apart. Four loops (drums, bass, music,
-//           vocal) that stack in sync, eight one-bar phrases of the sample, and
-//           four drum hits.
-//   Bank B, "chop it":  twelve chops you place yourself anywhere in the song,
+// Three banks of sixteen pads share one clock:
+//   Bank A, "the beat":  the hook rebuilt. Four loops that stack in sync (the
+//           drums and bass that were added, the sample, and the finished
+//           record to compare against), the sample one bar per pad, and four
+//           drum hits.
+//   Bank B, "the chops": the sixteen chops of the sample as they sat on the
+//           pads, cut from the source record.
+//   Bank C, "chop it":   twelve chops you place yourself anywhere in the song,
 //           on any stem, plus the same four drum hits.
+//
+// Pad ids: 0-15 are bank C, 16 and up are the kit's pads (bank A, then B).
 
 import { detectOnsets, gridSlices, peaks } from './slicer.js'
 import { playDrum, DRUMS } from './drums.js'
 
 export const N_CHOPS = 12
 export const BANK_SIZE = 16
-export const N_PADS = BANK_SIZE * 2
+export const N_PADS = BANK_SIZE * 3
+export const bankStart = (bank) => ({ A: BANK_SIZE, B: BANK_SIZE * 2, C: 0 })[bank]
 export const STEPS = 16
 export const REGION_SECONDS = 24
 
 // Apple's catalogue id for "Through the Wire" (Kanye West, The College Dropout).
 // Only used when no kit has been built: the app then streams Apple's preview.
 const TRACK_ID = 1437467903
-const SETTINGS_KEY = 'wire2004.settings.v2'
+const SETTINGS_KEY = 'wire2004.settings.v3'
 
 const emptyPattern = () => Array.from({ length: N_PADS }, () => Array(STEPS).fill(false))
 
@@ -65,7 +71,7 @@ class Engine {
       message: 'POWER ON',
       source: { kind: 'none', name: '', duration: 0 },
       kit: null,
-      bank: 'B',
+      bank: 'C',
       stem: 'full',
       loops: {},
       region: { start: 0, len: 0 },
@@ -269,13 +275,19 @@ class Engine {
     })
   }
 
+  hasBank(bank) {
+    if (bank === 'C') return true
+    return this.kitPads.length > (bank === 'A' ? 0 : BANK_SIZE)
+  }
+
   setBank(bank) {
-    if (bank === this.state.bank || (bank === 'A' && !this.state.kit)) return
-    this.set({
-      bank,
-      selected: bank === 'A' ? BANK_SIZE : 0,
-      message: bank === 'A' ? 'BANK A. THE BEAT, TAKEN APART' : 'BANK B. CHOP THE SONG YOURSELF',
-    })
+    if (bank === this.state.bank || !this.hasBank(bank)) return
+    const message = {
+      A: 'BANK A. THE BEAT, REBUILT',
+      B: 'BANK B. THE CHOPS, OFF THE SOURCE RECORD',
+      C: 'BANK C. CHOP THE SONG YOURSELF',
+    }[bank]
+    this.set({ bank, selected: bankStart(bank), message })
   }
 
   // ---- bank B chops --------------------------------------------------------
@@ -392,15 +404,15 @@ class Engine {
     }
 
     if (kind === 'shot') {
-      const buffer = this.kitPads[pad - BANK_SIZE].buffer
-      this.playSample(pad, buffer, 0, buffer.duration, t, fromSeq)
+      const { buffer, gain } = this.kitPads[pad - BANK_SIZE]
+      this.playSample(pad, buffer, 0, buffer.duration, t, fromSeq, gain ?? 1)
     } else if (this.buffer && pad < this.state.slices.length) {
       const offset = this.state.slices[pad]
       this.playSample(pad, this.buffer, offset, Math.max(0.02, this.sliceEnd(pad) - offset), t, fromSeq)
     }
   }
 
-  playSample(pad, buffer, offset, dur, t, fromSeq) {
+  playSample(pad, buffer, offset, dur, t, fromSeq, level = 1) {
     const ctx = this.ctx
     if (this.state.choke) this.stopVoices(t)
     const rate = Math.pow(2, this.state.pitch / 12)
@@ -409,9 +421,9 @@ class Engine {
     src.playbackRate.value = rate
     const g = ctx.createGain()
     g.gain.setValueAtTime(0, t)
-    g.gain.linearRampToValueAtTime(1, t + 0.004)
+    g.gain.linearRampToValueAtTime(level, t + 0.004)
     const end = t + dur / rate
-    g.gain.setValueAtTime(1, Math.max(t + 0.004, end - 0.012))
+    g.gain.setValueAtTime(level, Math.max(t + 0.004, end - 0.012))
     g.gain.linearRampToValueAtTime(0, end)
     src.connect(g).connect(this.sampleBus)
     src.start(t, offset, dur)

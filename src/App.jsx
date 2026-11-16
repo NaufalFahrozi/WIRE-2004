@@ -103,11 +103,14 @@ export default function App() {
             {s.kit && (
               <div className="mode-group">
                 <span className="mode-label">BANK</span>
-                <button className={`btn${s.bank === 'A' ? ' is-on' : ''}`} onClick={() => engine.setBank('A')} aria-pressed={s.bank === 'A'}>A · THE BEAT</button>
-                <button className={`btn${s.bank === 'B' ? ' is-on' : ''}`} onClick={() => engine.setBank('B')} aria-pressed={s.bank === 'B'}>B · CHOP IT</button>
+                {[['A', 'THE BEAT'], ['B', 'THE CHOPS'], ['C', 'CHOP IT']].filter(([id]) => engine.hasBank(id)).map(([id, label]) => (
+                  <button key={id} className={`btn${s.bank === id ? ' is-on' : ''}`} onClick={() => engine.setBank(id)} aria-pressed={s.bank === id}>
+                    {id} · {label}
+                  </button>
+                ))}
               </div>
             )}
-            {s.bank === 'B' && (
+            {s.bank === 'C' && (
               <div className="mode-group">
                 <span className="mode-label">CHOP</span>
                 <button className={`btn${s.sliceMode === 'auto' ? ' is-on' : ''}`} onClick={() => engine.reslice('auto')}>AUTO</button>
@@ -123,7 +126,7 @@ export default function App() {
 
           <Pads s={s} />
 
-          {s.kit && s.bank === 'B' && (
+          {s.kit && s.bank === 'C' && (
             <div className="mode-group stems">
               <span className="mode-label">STEM</span>
               {s.kit.stems.map((stem) => (
@@ -144,8 +147,12 @@ export default function App() {
               {!s.kit
                 ? "Running on Apple's official 30-second preview, with synthesized drums standing in for the record's own."
                 : s.bank === 'A'
-                  ? 'The hook of the record, pulled apart. Top row: its drums, bass, music and vocal as loops that stack in time. Middle rows: the sample, one bar per pad. Bottom row: single drum hits.'
-                  : 'Twelve chops you place yourself, anywhere in the song, cut from the full mix or from any single stem.'}
+                  ? s.kit.sample
+                    ? `The hook, rebuilt from its parts. Top row: the drums and the bass that were added, the sample itself (cut clean from ${s.kit.sample.artist}'s “${s.kit.sample.title}” and sped up ${s.kit.sample.rate.toFixed(2)}x), and the finished record to compare against. Middle rows: the sample, one bar per pad. Bottom row: single drum hits.`
+                    : 'The hook of the record, pulled apart. Top row: its drums, bass, music and vocal as loops that stack in time. Middle rows: the sample, one bar per pad. Bottom row: single drum hits.'
+                  : s.bank === 'B'
+                    ? `The sixteen chops as they sat on the pads: ${s.kit.sample.chop_beats} beats each, straight off “${s.kit.sample.title}”, pitched up ${Math.round(s.kit.sample.semitones)} semitones. Play them in order and you have the hook. Play them out of order and you have something new.`
+                    : 'Twelve chops you place yourself, anywhere in the song, cut from the full mix or from any single stem.'}
             </p>
           </div>
         </section>
@@ -156,9 +163,9 @@ export default function App() {
           <h2>How to play</h2>
           <ul>
             <li>Keys <b>1 2 3 4 / Q W E R / A S D F / Z X C V</b> match the pads, row by row. <b>Space</b> starts and stops the clock.</li>
-            <li><b>Bank A</b> is the beat taken apart. Tap the top row to bring a loop in on the next bar; tap again to drop it out.</li>
-            <li><b>Bank B</b> is for your own chops. Drag a marker to move one, and click the thin strip to jump to another part of the song.</li>
-            <li>Turn <b>PITCH</b> up to speed the samples into chipmunk soul. Change the tempo and the loops speed up with it, like tape.</li>
+            <li><b>Bank A</b> is the beat rebuilt. Tap the top row to bring a loop in on the next bar; tap again to drop it out. Drums, bass and sample together make the hook; the record pad lets you check.</li>
+            <li><b>Bank B</b> is the sample as sixteen chops, the way it sat on the pads. <b>Bank C</b> is for cutting your own.</li>
+            <li>Turn <b>PITCH</b> to re-pitch the chops. Change the tempo and the loops speed up with it, like tape.</li>
             <li>Arm <b>REC</b>, press play, and your pad hits are written into the pattern. Double-click any knob to reset it.</li>
           </ul>
         </div>
@@ -166,9 +173,10 @@ export default function App() {
           <h2>Liner notes</h2>
           <p>
             In October 2002 Kanye West fell asleep at the wheel in Los Angeles and shattered his jaw.
-            Two weeks later, with it still wired shut, he recorded this song over a sped-up chop of
-            Chaka Khan's “Through the Fire”. It became his debut single and opened the door to
-            The College Dropout in 2004. This machine lets you do to his record what he did to hers.
+            Two weeks later, with it still wired shut, he recorded this song over Chaka Khan's
+            “Through the Fire”. Lining the two records up shows how the beat was made: her record
+            runs four semitones fast, cut into two-beat chops from the last chorus, each chop
+            re-triggered on the grid, with new drums and bass laid on top. Those chops are on bank B.
           </p>
         </div>
       </footer>

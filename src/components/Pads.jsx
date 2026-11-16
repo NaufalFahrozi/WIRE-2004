@@ -1,11 +1,11 @@
 import { useEffect, useRef } from 'react'
-import { engine, padName, BANK_SIZE } from '../audio/engine.js'
+import { engine, padName, BANK_SIZE, bankStart } from '../audio/engine.js'
 
 export const KEYS = ['1', '2', '3', '4', 'Q', 'W', 'E', 'R', 'A', 'S', 'D', 'F', 'Z', 'X', 'C', 'V']
 
 // The sixteen pad ids of the bank on show.
 export const bankPads = (bank) =>
-  Array.from({ length: BANK_SIZE }, (_, i) => i + (bank === 'A' ? BANK_SIZE : 0))
+  Array.from({ length: BANK_SIZE }, (_, i) => i + bankStart(bank))
 
 const TAGS = { loop: 'LOOP', shot: 'SAMPLE', chop: '', drum: 'DRUM' }
 

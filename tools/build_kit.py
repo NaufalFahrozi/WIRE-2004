@@ -248,7 +248,27 @@ def main():
         sf.write(KIT / file, loop_cut(KIT / "_sample.flac", sr, hook_start + i * bar, bar, fade_out=0.02), sr, subtype="PCM_16")
         pads.append({"name": f"PHRASE {i + 1}", "kind": "shot", "file": file})
     (KIT / "_sample.flac").unlink()
-    pads += [{"name": d["name"], "kind": "drum", "file": d["file"]} for d in drum_list]
+    drum_pads = [{"name": d["name"], "kind": "drum", "file": d["file"]} for d in drum_list]
+    pads += drum_pads
+
+    # If match_sample.py has traced the sample back to its source record, use
+    # the real thing: the sample loop and the phrases come clean off the
+    # source, and a second bank holds the chops as they sat on the pads.
+    sample_info = None
+    map_path = KIT / "sample_map.json"
+    if map_path.exists():
+        sample_info = json.loads(map_path.read_text())
+        sf.write(KIT / "loop_full.wav", loop_cut(KIT / "full.flac", sr, hook_start, bars * bar), sr, subtype="PCM_16")
+        pads = pads[:2] + [
+            {"name": "SAMPLE", "kind": "loop", "file": "source_loop.wav", "bars": bars},
+            {"name": "RECORD", "kind": "loop", "file": "loop_full.wav", "bars": bars},
+        ]
+        pads += [{"name": f"PHRASE {i + 1}", "kind": "shot", "file": f"source_phrase{i + 1}.wav", "gain": 1.8,
+                  "source": sample_info["chops"][i * 2]["source"]} for i in range(bars)]
+        pads += drum_pads
+        pads += [{"name": f"CHOP {c['n']:02d}", "kind": "shot", "file": f"source_chop{c['n']:02d}.wav", "gain": 1.8,
+                  "source": c["source"]} for c in sample_info["chops"]]
+        print(f"sample traced to {sample_info['artist']}, {sample_info['title']}: {len(sample_info['chops'])} chops on bank B")
 
     kit = {
         "title": "Through the Wire",
@@ -257,6 +277,7 @@ def main():
         "duration": round(info.duration, 3),
         "start": round(float(hook_start), 4),
         "pads": pads,
+        "sample": sample_info and {k: sample_info[k] for k in ("title", "artist", "rate", "semitones", "chop_beats")},
         "stems": [
             {"id": "full", "label": "FULL MIX", "file": "full.flac"},
             {"id": "nodrums", "label": "NO DRUMS", "file": "nodrums.flac"},
