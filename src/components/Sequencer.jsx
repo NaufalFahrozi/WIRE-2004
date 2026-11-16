@@ -4,7 +4,7 @@ import { bankPads } from './Pads.jsx'
 export default function Sequencer({ s }) {
   const row = s.pattern[s.selected]
   const isLoop = engine.kindOf(s.selected) === 'loop'
-  const rows = bankPads(s.bank).filter((pad) => engine.kindOf(pad) !== 'loop')
+  const rows = bankPads(s.bank).filter((pad) => !['loop', 'empty'].includes(engine.kindOf(pad)))
 
   return (
     <div className="seq">

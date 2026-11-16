@@ -7,7 +7,7 @@ export const KEYS = ['1', '2', '3', '4', 'Q', 'W', 'E', 'R', 'A', 'S', 'D', 'F',
 export const bankPads = (bank) =>
   Array.from({ length: BANK_SIZE }, (_, i) => i + bankStart(bank))
 
-const TAGS = { loop: 'LOOP', shot: 'SAMPLE', chop: '', drum: 'DRUM' }
+const TAGS = { loop: 'LOOP', shot: 'SAMPLE', chop: '', drum: 'DRUM', empty: '' }
 
 export default function Pads({ s }) {
   const refs = useRef({})
@@ -45,7 +45,8 @@ export default function Pads({ s }) {
             }}
             onPointerUp={() => engine.release(pad)}
             onPointerCancel={() => engine.release(pad)}
-            aria-label={`${padName(pad)}, key ${KEYS[i]}`}
+            disabled={kind === 'empty'}
+            aria-label={kind === 'empty' ? 'Empty pad' : `${padName(pad)}, key ${KEYS[i]}`}
             aria-pressed={kind === 'loop' ? Boolean(loop) : undefined}
           >
             <span className="pad-key">{KEYS[i]}</span>

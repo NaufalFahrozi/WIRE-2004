@@ -1,31 +1,32 @@
 // WIRE-2004 audio engine.
 //
-// Three banks of sixteen pads share one clock:
-//   Bank A, "the beat":  the hook rebuilt. Four loops that stack in sync (the
+// Four banks of sixteen pads share one clock:
+//   Bank A, "the beat":  the chorus rebuilt. Four loops that stack in sync (the
 //           drums and bass that were added, the sample, and the finished
-//           record to compare against), the sample one bar per pad, and four
+//           record to compare against), the sample line by line, and four
 //           drum hits.
-//   Bank B, "the chops": the sixteen chops of the sample as they sat on the
-//           pads, cut from the source record.
-//   Bank C, "chop it":   twelve chops you place yourself anywhere in the song,
+//   Banks B and C, "the chops": the sample chop by chop, cut from the source
+//           record, in the order they come.
+//   Bank D, "chop it":   twelve chops you place yourself anywhere in the song,
 //           on any stem, plus the same four drum hits.
 //
-// Pad ids: 0-15 are bank C, 16 and up are the kit's pads (bank A, then B).
+// Pad ids: 0-15 are bank D, 16 and up are the kit's pads (banks A, B, C).
 
 import { detectOnsets, gridSlices, peaks } from './slicer.js'
 import { playDrum, DRUMS } from './drums.js'
 
 export const N_CHOPS = 12
 export const BANK_SIZE = 16
-export const N_PADS = BANK_SIZE * 3
-export const bankStart = (bank) => ({ A: BANK_SIZE, B: BANK_SIZE * 2, C: 0 })[bank]
+export const N_PADS = BANK_SIZE * 4
+export const bankStart = (bank) => ({ A: BANK_SIZE, B: BANK_SIZE * 2, C: BANK_SIZE * 3, D: 0 })[bank]
+export const FREE_BANK = 'D'
 export const STEPS = 16
 export const REGION_SECONDS = 24
 
 // Apple's catalogue id for "Through the Wire" (Kanye West, The College Dropout).
 // Only used when no kit has been built: the app then streams Apple's preview.
 const TRACK_ID = 1437467903
-const SETTINGS_KEY = 'wire2004.settings.v3'
+const SETTINGS_KEY = 'wire2004.settings.v4'
 
 const emptyPattern = () => Array.from({ length: N_PADS }, () => Array(STEPS).fill(false))
 
@@ -71,7 +72,7 @@ class Engine {
       message: 'POWER ON',
       source: { kind: 'none', name: '', duration: 0 },
       kit: null,
-      bank: 'C',
+      bank: FREE_BANK,
       stem: 'full',
       loops: {},
       region: { start: 0, len: 0 },
@@ -200,7 +201,7 @@ class Engine {
       this.set({ loading: true, message: 'LOADING THE KIT CUT FROM THE RECORD' })
       const [drums, pads] = await Promise.all([
         Promise.all(kit.drums.map((d) => this.fetchAudio(`/kit/${d.file}`))),
-        Promise.all(kit.pads.map(async (p) => ({ ...p, buffer: await this.fetchAudio(`/kit/${p.file}`) }))),
+        Promise.all(kit.pads.map(async (p) => ({ ...p, buffer: p.file ? await this.fetchAudio(`/kit/${p.file}`) : null }))),
       ])
       this.drumBuffers = drums
       this.kitPads = pads
@@ -276,16 +277,17 @@ class Engine {
   }
 
   hasBank(bank) {
-    if (bank === 'C') return true
-    return this.kitPads.length > (bank === 'A' ? 0 : BANK_SIZE)
+    if (bank === FREE_BANK) return true
+    return this.kitPads.length > bankStart(bank) - BANK_SIZE
   }
 
   setBank(bank) {
     if (bank === this.state.bank || !this.hasBank(bank)) return
     const message = {
       A: 'BANK A. THE BEAT, REBUILT',
-      B: 'BANK B. THE CHOPS, OFF THE SOURCE RECORD',
-      C: 'BANK C. CHOP THE SONG YOURSELF',
+      B: 'BANK B. THE CHORUS, CHOP BY CHOP',
+      C: 'BANK C. THE REST OF THE CHOPS',
+      D: 'BANK D. CHOP THE SONG YOURSELF',
     }[bank]
     this.set({ bank, selected: bankStart(bank), message })
   }

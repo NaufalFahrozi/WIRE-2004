@@ -32,6 +32,7 @@ from scipy.signal import butter, correlate, csd, fftconvolve, resample_poly, sos
 KIT = Path(__file__).resolve().parent.parent / "public" / "kit"
 BARS = 8
 CHOP_BEATS = 2
+MAX_TAIL_BARS = 8   # how far either side of the hook to look for the sample carrying on
 
 # ---- coarse pass: pitch content -------------------------------------------
 
@@ -131,7 +132,8 @@ def best_lag(piece, whole, pad, fs):
     """Where `piece` sits in `whole`, as a lag in seconds from the expected
     spot, plus how far the peak stands out and whether it is upside down."""
     c = correlate(whole, piece, mode="valid")
-    energy = np.sqrt(np.convolve(whole * whole, np.ones(len(piece)), mode="valid")) * np.linalg.norm(piece) + 1e-12
+    run = np.concatenate([[0.0], np.cumsum(whole.astype(np.float64) ** 2)])
+    energy = np.sqrt(np.maximum(run[len(piece) :] - run[: -len(piece)], 0)) * np.linalg.norm(piece) + 1e-12
     c = c / energy
     k = int(np.abs(c).argmax())
     stand_out = (abs(c[k]) - np.abs(c).mean()) / np.abs(c).std()
@@ -167,52 +169,161 @@ def main(src_path):
     kit = json.loads((KIT / "kit.json").read_text())
     beat = 60 / kit["bpm"]
     bar = 4 * beat
-    start = kit["start"]
+    first = kit["firstBeat"]
+    hook = kit.get("hook_start", kit["start"])
     span = BARS * bar
 
     full, sr = sf.read(KIT / "full.flac", dtype="float32", always_2d=True)
     other, _ = sf.read(KIT / "other.flac", dtype="float32", always_2d=True)
     vocals, _ = sf.read(KIT / "vocals.flac", dtype="float32", always_2d=True)
     source, src_sr = sf.read(src_path, dtype="float32", always_2d=True)
-    a, b = int(start * sr), int((start + span) * sr)
+    a, b = int(hook * sr), int((hook + span) * sr)
 
     rate, fit, spots, src0 = coarse((other + vocals)[a:b], sr, source, src_sr)
-    steps = np.diff(spots)
-    if not np.all(np.abs(steps - bar * rate) < 0.3):
+    if not np.all(np.abs(np.diff(spots) - bar * rate) < 0.3):
         print("warning: the bars of the hook do not follow on from each other in the source;")
         print("         the fine pass assumes they do and may be wrong")
     print(f"coarse: sped up {rate:.4f}x, hook starts {src0 // 60:.0f}:{src0 % 60:05.2f} into the source, fit {fit:.2f}")
 
     fs = sr // DECIMATE
-    target = band(full[a:b], sr)
     pad = 0.4
+    target = band(full[a:b], sr)
     for _ in range(3):
-        sped = band(sped_source(source, src_sr, sr, rate, src0, span, pad), sr)
-        drift = find_drift(target, sped, pad, fs)
+        drift = find_drift(target, band(sped_source(source, src_sr, sr, rate, src0, span, pad), sr), pad, fs)
         rate *= 1 + drift
         if abs(drift) < 2e-5:
             break
     semis = 12 * np.log2(rate)
     print(f"fine:   sped up {rate:.4f}x ({semis:+.2f} semitones)")
 
-    # Place every chop on its own.
-    sped = band(sped_source(source, src_sr, sr, rate, src0, span, pad), sr)
-    n_chops = BARS * 4 // CHOP_BEATS
+    # The whole record and the whole source (sped up), ready to be compared
+    # anywhere against anywhere.
+    song = band(full, sr)
+    whole = band(sped_source(source, src_sr, sr, rate, 0, len(source) / src_sr / rate, 0), sr)
     chop_len = CHOP_BEATS * beat
+    n_fs = int(round(chop_len * fs))
+    per_bar = 4 // CHOP_BEATS
+    per_line = 2 * per_bar
+    pad = 0.25
+
+    def place(at, src):
+        """Look for the stretch of source starting at `src` under the record at `at`."""
+        w0 = int(round(at * fs))
+        k0 = int(round((src / rate - pad) * fs))
+        if w0 < 0 or w0 + n_fs > len(song) or k0 < 0 or k0 + n_fs + int(2 * pad * fs) > len(whole):
+            return None
+        lag, stand_out, corr = best_lag(song[w0 : w0 + n_fs], whole[k0 : k0 + n_fs + int(2 * pad * fs)], pad, fs)
+        return {"at": at, "src": src, "lag": lag, "stand_out": stand_out, "corr": corr}
+
+    # Everywhere the hook comes round in the song.
+    in_hook = BARS * per_bar
+    rounds = []
+    for k in range(int((kit["duration"] - first) / bar)):
+        at = first + k * bar
+        probe = [place(at + i * chop_len, src0 + i * chop_len * rate) for i in (0, 1, in_hook - 1)]
+        if all(g and g["stand_out"] >= 6 for g in probe):
+            rounds.append(at)
+
+    def clear(offset):
+        """How clearly the chop `offset` chops from the start of the hook shows
+        up, each time the hook comes round."""
+        got = [place(at + offset * chop_len, src0 + offset * chop_len * rate) for at in rounds]
+        return [g["stand_out"] for g in got if g]
+
+    def every_time(offset):
+        seen = clear(offset)
+        return len(seen) >= 2 and min(seen) >= 6
+
+    def reach(offset, step):
+        """Walk outwards from the hook for as long as the source carries on the
+        same way every time the hook comes round. One unclear chop is let
+        through if the one beyond it is clear again: somebody rapping over a
+        chop does not mean it is not there."""
+        for _ in range(MAX_TAIL_BARS * per_bar):
+            if every_time(offset):
+                offset += step
+            elif every_time(offset + step):
+                offset += 2 * step
+            else:
+                break
+        return offset
+
+    # The hook is the part nobody raps over. The chorus is usually longer:
+    # find how far it runs either side, in whole lines of two bars.
+    hi = reach(in_hook, 1)
+    hi += -hi % per_line                    # finish the line it stopped in
+    back = -1 - reach(-1, -1)               # chops found before the hook
+    lo = -(back // per_line) * per_line
+    has_pickup = back % per_line > 0
+    n_chorus = hi - lo
+    total_bars = n_chorus // per_bar
+    src_begin = src0 + lo * chop_len * rate
+    print(f"        the chorus is {total_bars} bars: {n_chorus} chops of {CHOP_BEATS} beats, "
+          f"from about {src_begin // 60:.0f}:{src_begin % 60:04.1f} in the source")
+
+    # Use the time round where the most chops show clearly and, between equals,
+    # the one with the least rapping over it.
+    sos = butter(4, [85, 260], btype="band", fs=sr, output="sos")
+    rap = sosfiltfilt(sos, vocals.mean(1)) ** 2
+    found = []
+    for at in rounds:
+        t0 = at + lo * chop_len
+        if t0 < 0 or t0 + n_chorus * chop_len > kit["duration"]:
+            continue
+        got = [place(t0 + i * chop_len, src_begin + i * chop_len * rate) for i in range(n_chorus)]
+        # An unclear chop that is also out of line with the clear ones around
+        # it is not the same chop: this time round the record does something else.
+        good = [g for g in got if g["stand_out"] >= 6]
+        wrong = sum(
+            g["stand_out"] < 6 and abs(g["lag"] - min(good, key=lambda c: abs(c["at"] - g["at"]))["lag"]) > 0.04
+            for g in got
+        )
+        unclear = sum(g["stand_out"] < 6 for g in got)
+        found.append((wrong, unclear, float(rap[int(t0 * sr) : int((t0 + n_chorus * chop_len) * sr)].mean()), int(round((t0 - first) / bar)), t0))
+    print("        it comes round at bar " + ", ".join(str(f[3] + 1) for f in sorted(found, key=lambda f: f[3])))
+    _, _, _, bar_no, begin = min(found)
+    print(f"        using the one at bar {bar_no + 1} ({begin:.2f}s)")
+
     chops = []
-    for i in range(n_chops):
-        t = i * chop_len
-        w0, n = int(round(t * fs)), int(round(chop_len * fs))
-        lag, stand_out, corr = best_lag(target[w0 : w0 + n], sped[w0 : w0 + n + int(2 * pad * fs)], pad, fs)
-        chops.append({"n": i + 1, "t": t, "lag": lag, "stand_out": stand_out, "corr": corr})
-    # A chop that did not match clearly takes its place from its neighbours.
+    for i in range(n_chorus):
+        g = place(begin + i * chop_len, src_begin + i * chop_len * rate)
+        chops.append({**g, "n": i + 1, "role": "chorus"})
     sure = [c for c in chops if c["stand_out"] >= 6]
     for c in chops:
-        if c["stand_out"] < 6 and sure:
-            c["lag"] = float(np.interp(c["t"], [s["t"] for s in sure], [s["lag"] for s in sure]))
+        # A chop that did not match clearly takes its place from its neighbours.
+        if c["stand_out"] < 6:
+            c["lag"] = float(np.interp(c["at"], [s["at"] for s in sure], [s["lag"] for s in sure]))
             c["guessed"] = True
-        c["source"] = src0 + (c["t"] + c["lag"]) * rate
-    flipped = float(np.median([c["corr"] for c in sure])) < 0 if sure else False
+
+    # A pickup: the sample starts a little before the bar line.
+    pickup = place(begin - chop_len, src_begin - chop_len * rate) if has_pickup else None
+    if pickup:
+        chops.append({**pickup, "n": 0, "role": "pickup"})
+        print("        with a pickup before the first bar")
+
+    # What follows the chorus in the source is what the verses are built on.
+    # Take each next chop and look for it anywhere in the song. Looking in
+    # hundreds of places turns up chance matches, so the bar is set higher.
+    grid = [first + k * chop_len for k in range(int((kit["duration"] - first) / chop_len))]
+    missed = 0
+    for j in range(16):
+        src = src_begin + (n_chorus + j) * chop_len * rate
+        # First where it would be if the source simply carried on after a chorus.
+        after = [g for g in (place(f[4] + (n_chorus + j) * chop_len, src) for f in found) if g and g["stand_out"] >= 6]
+        hits = after or [g for g in (place(at, src) for at in grid) if g and g["stand_out"] >= 9.5]
+        best = max(hits, key=lambda g: g["stand_out"], default=None)
+        if not best:
+            missed += 1
+            if missed == 2:
+                break
+            continue
+        missed = 0
+        chops.append({**best, "n": n_chorus + j + 1, "role": "verse"})
+    n_verse = sum(c["role"] == "verse" for c in chops)
+    if n_verse:
+        print(f"        and {n_verse} more chops straight after it are used under the verses")
+    for c in chops:
+        c["source"] = c["src"] + c["lag"] * rate
 
     # Cut the chops out of the source, sped up.
     n_out = int(round(chop_len * sr))
@@ -229,7 +340,11 @@ def main(src_path):
             out.append(seg.astype(np.float64))
         return out
 
-    refs = [full[a + i * n_out - lead_n : a + (i + 1) * n_out - lead_n].mean(1) for i in range(n_chops)]
+    refs = []
+    for c in chops:
+        r0 = int(round(c["at"] * sr)) - lead_n
+        ref = full[max(0, r0) : r0 + n_out].mean(1)
+        refs.append(np.pad(ref, (n_out - len(ref), 0)))
     mid_band = butter(4, [300, 2500], btype="band", fs=sr, output="sos")
     # The first placing was done at a quarter of the sample rate. Tighten each
     # chop to the nearest sample, twice over, and cut again.
@@ -289,27 +404,37 @@ def main(src_path):
         mono = [sosfiltfilt(lowpass, seg) for seg in mono]
         print(f"        matched with a low-pass at {cutoff:.0f} Hz")
     cuts = [np.repeat(seg[:, None], 2, axis=1).astype(np.float32) for seg in mono]
-    match = float(np.mean([abs(c["corr"]) for c in sure])) if sure else 0.0
-    print(f"check:  {len(sure)} of {n_chops} chops found in the record's waveform")
+    print(f"check:  {len(sure)} of {n_chorus} chorus chops found in the record's waveform")
 
     fade = int(0.002 * sr)
     for seg in cuts:
         seg *= gain
         seg[:fade] *= np.linspace(0, 1, fade)[:, None]
         seg[-fade:] *= np.linspace(1, 0, fade)[:, None]
-    peak = max(float(np.abs(seg).max()) for seg in cuts)
-    scale = min(1.0, 0.98 / peak)
-    for i, seg in enumerate(cuts):
-        sf.write(KIT / f"source_chop{i + 1:02d}.wav", seg * scale, sr, subtype="PCM_16")
-    per_bar = 4 // CHOP_BEATS
-    for i in range(BARS):
-        sf.write(KIT / f"source_phrase{i + 1}.wav", np.concatenate(cuts[i * per_bar : (i + 1) * per_bar]) * scale, sr, subtype="PCM_16")
-    sf.write(KIT / "source_loop.wav", np.concatenate(cuts) * scale, sr, subtype="PCM_16")
+    scale = min(1.0, 0.98 / max(float(np.abs(seg).max()) for seg in cuts))
+    for old in KIT.glob("source_*.wav"):
+        old.unlink()
 
-    print("chop  beat   source      shift    match")
-    for c in chops:
+    def write(name, parts):
+        sf.write(KIT / name, np.concatenate(parts) * scale, sr, subtype="PCM_16")
+
+    by_n = {c["n"]: seg for c, seg in zip(chops, cuts)}
+    for n, seg in by_n.items():
+        write("source_pickup.wav" if n == 0 else f"source_chop{n:02d}.wav", [seg])
+    # Two bars at a time the chorus falls into its lines.
+    n_lines = n_chorus // per_line
+    for i in range(n_lines):
+        write(f"source_line{i + 1}.wav", [by_n[i * per_line + k + 1] for k in range(per_line)])
+    write("source_loop.wav", [by_n[i + 1] for i in range(n_chorus)])
+    verse = [c["n"] for c in chops if c["role"] == "verse"]
+    if len(verse) >= per_line:
+        # The last two bars of it, in one piece: the bed under the verses.
+        write("source_verse.wav", [by_n[n] for n in verse[-per_line:]])
+
+    print("chop  role     source     in the song   shift     match")
+    for c in sorted(chops, key=lambda c: c["n"]):
         s = c["source"]
-        print(f"  {c['n']:2d}   {c['t'] / beat:4.0f}   {s // 60:.0f}:{s % 60:06.3f}  {c['lag'] * 1000:+7.1f} ms  "
+        print(f"  {c['n']:2d}  {c['role']:7s}  {s // 60:.0f}:{s % 60:06.3f}   {c['at']:7.2f}s   {c['lag'] * 1000:+7.1f} ms  "
               f"{'guessed from neighbours' if c.get('guessed') else format(c['stand_out'], '.0f') + ' sd'}")
 
     (KIT / "sample_map.json").write_text(json.dumps({
@@ -317,17 +442,22 @@ def main(src_path):
         "artist": "Chaka Khan",
         "rate": round(float(rate), 5),
         "semitones": round(float(semis), 2),
-        "correlation": round(match, 3),
         "flipped": bool(flipped),
         "sampled": how,
         "gain": round(abs(float(gain)), 3),
         "lowpass_hz": cutoff and round(cutoff),
         "chop_beats": CHOP_BEATS,
+        "start": round(float(begin), 4),
+        "bars": total_bars,
+        "lines": n_lines,
+        "comes_round_at_bars": sorted(f[3] + 1 for f in found),
+        "has_verse_bed": len(verse) >= per_line,
         "level": round(scale, 4),
-        "chops": [{"n": c["n"], "source": round(float(c["source"]), 4), "shift_ms": round(c["lag"] * 1000, 1),
-                   "guessed": bool(c.get("guessed"))} for c in chops],
+        "chops": [{"n": c["n"], "role": c["role"], "source": round(float(c["source"]), 4), "at": round(float(c["at"]), 3),
+                   "shift_ms": round(c["lag"] * 1000, 1), "guessed": bool(c.get("guessed"))}
+                  for c in sorted(chops, key=lambda c: c["n"])],
     }, indent=2))
-    print(f"wrote {n_chops} chops, {BARS} phrases, source_loop.wav, sample_map.json")
+    print(f"wrote {len(chops)} chops, {n_lines} lines, source_loop.wav ({total_bars} bars), sample_map.json")
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { engine, padName, N_CHOPS, BANK_SIZE } from '../audio/engine.js'
+import { engine, padName, N_CHOPS, BANK_SIZE, FREE_BANK } from '../audio/engine.js'
 
 const AMBER = '#ffb62e'
 const AMBER_DIM = 'rgba(255, 182, 46, 0.34)'
@@ -40,7 +40,7 @@ function drawWave(canvas, spectrum) {
     }
   }
 
-  if (s.bank !== 'C') return drawKitPad(g, w, h, s)
+  if (s.bank !== FREE_BANK) return drawKitPad(g, w, h, s)
   if (!engine.buffer || !region.len) return
 
   // Selected chop gets a lit backdrop.
@@ -186,7 +186,7 @@ export default function Screen({ s }) {
 
   const waveDown = (e) => {
     const { slices, bank, selected } = engine.getState()
-    if (bank !== 'C') {
+    if (bank !== FREE_BANK) {
       if (engine.kindOf(selected) !== 'loop') {
         engine.trigger(selected)
         drag.current = { pad: selected }
@@ -223,12 +223,13 @@ export default function Screen({ s }) {
     engine.setRegionStart(t - s.region.len / 2)
   }
 
-  const kp = s.bank !== 'C' ? engine.kitPads[s.selected - BANK_SIZE] : null
+  const kp = s.bank !== FREE_BANK ? engine.kitPads[s.selected - BANK_SIZE] : null
   const kitInfo = !kp ? ''
+    : kp.kind === 'empty' ? 'EMPTY'
     : kp.kind === 'loop' ? `LOOP · ${kp.bars} BARS`
     : kp.kind === 'shot' ? (kp.source != null ? `THROUGH THE FIRE AT ${clock(kp.source)}` : `SAMPLE · ${kp.buffer.duration.toFixed(2)}S`)
     : 'DRUM · CUT FROM THE RECORD'
-  const sourceTag = kp ? (s.bank === 'A' ? 'BANK A · THE BEAT' : 'BANK B · THE CHOPS') :
+  const sourceTag = kp ? (s.bank === 'A' ? 'BANK A · THE BEAT' : `BANK ${s.bank} · THE CHOPS`) :
     s.source.kind === 'preview' ? `PREVIEW ${clock(s.source.duration)}`
     : s.source.kind === 'kit' ? `${s.kit.stems.find((x) => x.id === s.stem).label} ${clock(s.source.duration)}`
     : 'NO SOURCE'
@@ -248,7 +249,7 @@ export default function Screen({ s }) {
           <span>KANYE WEST · THE COLLEGE DROPOUT</span>
           <span>{s.bpm} BPM · {s.pitch > 0 ? '+' : ''}{s.pitch} ST</span>
         </div>
-        {s.bank === 'C' && <canvas
+        {s.bank === FREE_BANK && <canvas
           ref={over}
           className="lcd-overview"
           onPointerDown={seek}

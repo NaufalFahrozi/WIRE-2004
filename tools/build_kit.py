@@ -255,32 +255,59 @@ def main():
     # the real thing: the sample loop and the phrases come clean off the
     # source, and a second bank holds the chops as they sat on the pads.
     sample_info = None
+    kit_start = hook_start
     map_path = KIT / "sample_map.json"
     if map_path.exists():
         sample_info = json.loads(map_path.read_text())
         # In the loop the sample sits at its level in the mix. Played alone
         # on a pad it wants to be as loud as the drum hits.
         shot_gain = round(min(8.0, 0.8 / float(np.abs(sf.read(KIT / "source_loop.wav")[0]).max())), 2)
-        sf.write(KIT / "loop_full.wav", loop_cut(KIT / "full.flac", sr, hook_start, bars * bar), sr, subtype="PCM_16")
-        pads = pads[:2] + [
+        # The chorus is longer than the stretch nobody raps over, and it is
+        # not always cut from the same time round. Every loop is cut to the
+        # chorus's full length, from where match_sample.py placed it.
+        bars = sample_info["bars"]
+        kit_start = sample_info["start"]
+        for stem in ("drums", "bass", "full"):
+            sf.write(KIT / f"loop_{stem}.wav", loop_cut(KIT / f"{stem}.flac", sr, kit_start, bars * bar), sr, subtype="PCM_16")
+        empty = {"name": "", "kind": "empty"}
+
+        def shot(name, file, source):
+            return {"name": name, "kind": "shot", "file": file, "gain": shot_gain, "source": source}
+
+        every = sample_info["chops"]
+        chorus = [c for c in every if c["role"] == "chorus"]
+        after = [c for c in every if c["role"] == "verse"]
+        pickup = [shot("PICKUP", "source_pickup.wav", c["source"]) for c in every if c["role"] == "pickup"]
+        per_line = len(chorus) // sample_info["lines"]
+
+        # Bank A: the loops, the chorus line by line, the pickup into it, the
+        # bed under the verses, and the drum hits.
+        row = [shot(f"LINE {i + 1}", f"source_line{i + 1}.wav", chorus[i * per_line]["source"]) for i in range(sample_info["lines"])][:6]
+        row += pickup
+        if sample_info.get("has_verse_bed"):
+            row.append(shot("VERSE", "source_verse.wav", after[-per_line]["source"]))
+        pads = [
+            {"name": "DRUMS", "kind": "loop", "file": "loop_drums.wav", "bars": bars},
+            {"name": "BASS", "kind": "loop", "file": "loop_bass.wav", "bars": bars},
             {"name": "SAMPLE", "kind": "loop", "file": "source_loop.wav", "bars": bars},
             {"name": "RECORD", "kind": "loop", "file": "loop_full.wav", "bars": bars},
-        ]
-        pads += [{"name": f"PHRASE {i + 1}", "kind": "shot", "file": f"source_phrase{i + 1}.wav", "gain": shot_gain,
-                  "source": sample_info["chops"][i * 2]["source"]} for i in range(bars)]
-        pads += drum_pads
-        pads += [{"name": f"CHOP {c['n']:02d}", "kind": "shot", "file": f"source_chop{c['n']:02d}.wav", "gain": shot_gain,
-                  "source": c["source"]} for c in sample_info["chops"]]
-        print(f"sample traced to {sample_info['artist']}, {sample_info['title']}: {len(sample_info['chops'])} chops on bank B")
+        ] + (row + [empty] * 8)[:8] + (drum_pads + [empty] * 4)[:4]
+        # Banks B and C: every chop in source order, one a pad.
+        singles = [shot(f"CHOP {c['n']:02d}", f"source_chop{c['n']:02d}.wav", c["source"]) for c in chorus + after] + pickup
+        for i in range(0, min(len(singles), 32), 16):
+            pads += (singles[i : i + 16] + [empty] * 16)[:16]
+        print(f"sample traced to {sample_info['artist']}, {sample_info['title']}: "
+              f"{bars}-bar chorus, {len(chorus)} chops, {len(after)} more under the verses")
 
     kit = {
         "title": "Through the Wire",
         "bpm": round(float(bpm), 3),
         "firstBeat": round(float(first), 4),
         "duration": round(info.duration, 3),
-        "start": round(float(hook_start), 4),
+        "start": round(float(kit_start), 4),
+        "hook_start": round(float(hook_start), 4),
         "pads": pads,
-        "sample": sample_info and {k: sample_info[k] for k in ("title", "artist", "rate", "semitones", "chop_beats")},
+        "sample": sample_info and {k: sample_info[k] for k in ("title", "artist", "rate", "semitones", "chop_beats", "bars", "sampled")},
         "stems": [
             {"id": "full", "label": "FULL MIX", "file": "full.flac"},
             {"id": "nodrums", "label": "NO DRUMS", "file": "nodrums.flac"},

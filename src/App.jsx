@@ -1,5 +1,5 @@
 import { useEffect, useSyncExternalStore } from 'react'
-import { engine } from './audio/engine.js'
+import { engine, FREE_BANK } from './audio/engine.js'
 import Screen from './components/Screen.jsx'
 import Pads, { bankPads } from './components/Pads.jsx'
 import Knob from './components/Knob.jsx'
@@ -103,14 +103,14 @@ export default function App() {
             {s.kit && (
               <div className="mode-group">
                 <span className="mode-label">BANK</span>
-                {[['A', 'THE BEAT'], ['B', 'THE CHOPS'], ['C', 'CHOP IT']].filter(([id]) => engine.hasBank(id)).map(([id, label]) => (
+                {[['A', 'THE BEAT'], ['B', 'CHOPS'], ['C', 'MORE CHOPS'], ['D', 'CHOP IT']].filter(([id]) => engine.hasBank(id)).map(([id, label]) => (
                   <button key={id} className={`btn${s.bank === id ? ' is-on' : ''}`} onClick={() => engine.setBank(id)} aria-pressed={s.bank === id}>
                     {id} · {label}
                   </button>
                 ))}
               </div>
             )}
-            {s.bank === 'C' && (
+            {s.bank === FREE_BANK && (
               <div className="mode-group">
                 <span className="mode-label">CHOP</span>
                 <button className={`btn${s.sliceMode === 'auto' ? ' is-on' : ''}`} onClick={() => engine.reslice('auto')}>AUTO</button>
@@ -126,7 +126,7 @@ export default function App() {
 
           <Pads s={s} />
 
-          {s.kit && s.bank === 'C' && (
+          {s.kit && s.bank === FREE_BANK && (
             <div className="mode-group stems">
               <span className="mode-label">STEM</span>
               {s.kit.stems.map((stem) => (
@@ -146,13 +146,15 @@ export default function App() {
             <p>
               {!s.kit
                 ? "Running on Apple's official 30-second preview, with synthesized drums standing in for the record's own."
-                : s.bank === 'A'
-                  ? s.kit.sample
-                    ? `The hook, rebuilt from its parts. Top row: the drums and the bass that were added, the sample itself (cut clean from ${s.kit.sample.artist}'s “${s.kit.sample.title}” and sped up ${s.kit.sample.rate.toFixed(2)}x), and the finished record to compare against. Middle rows: the sample, one bar per pad. Bottom row: single drum hits.`
-                    : 'The hook of the record, pulled apart. Top row: its drums, bass, music and vocal as loops that stack in time. Middle rows: the sample, one bar per pad. Bottom row: single drum hits.'
-                  : s.bank === 'B'
-                    ? `The sixteen chops as they sat on the pads: ${s.kit.sample.chop_beats} beats each, straight off “${s.kit.sample.title}”, pitched up ${Math.round(s.kit.sample.semitones)} semitones. Play them in order and you have the hook. Play them out of order and you have something new.`
-                    : 'Twelve chops you place yourself, anywhere in the song, cut from the full mix or from any single stem.'}
+                : s.bank === FREE_BANK
+                  ? 'Twelve chops you place yourself, anywhere in the song, cut from the full mix or from any single stem.'
+                  : !s.kit.sample
+                    ? 'The hook of the record, pulled apart. Top row: its drums, bass, music and vocal as loops that stack in time. Middle rows: the sample, one bar per pad. Bottom row: single drum hits.'
+                    : s.bank === 'A'
+                      ? `The chorus, rebuilt from its parts. Top row: the drums and the bass that were added, the sample itself (all ${s.kit.sample.bars} bars, cut clean from ${s.kit.sample.artist}'s “${s.kit.sample.title}” and sped up ${s.kit.sample.rate.toFixed(2)}x), and the finished record to compare against. Middle rows: the sample line by line, the pickup that leads into it, and the bed that runs under the verses. Bottom row: single drum hits.`
+                      : s.bank === 'B'
+                        ? `The chorus as it sat on the pads: chops 1 to 16, ${s.kit.sample.chop_beats} beats each, straight off “${s.kit.sample.title}”. Play them in order and you have the record. Play them out of order and you have something new.`
+                        : 'The rest of the chops: the end of the chorus, then the stretch of the source that the verses are looped from.'}
             </p>
           </div>
         </section>
@@ -163,8 +165,8 @@ export default function App() {
           <h2>How to play</h2>
           <ul>
             <li>Keys <b>1 2 3 4 / Q W E R / A S D F / Z X C V</b> match the pads, row by row. <b>Space</b> starts and stops the clock.</li>
-            <li><b>Bank A</b> is the beat rebuilt. Tap the top row to bring a loop in on the next bar; tap again to drop it out. Drums, bass and sample together make the hook; the record pad lets you check.</li>
-            <li><b>Bank B</b> is the sample as sixteen chops, the way it sat on the pads. <b>Bank C</b> is for cutting your own.</li>
+            <li><b>Bank A</b> is the beat rebuilt. Tap the top row to bring a loop in on the next bar; tap again to drop it out. Drums, bass and sample together make the chorus; the record pad lets you check.</li>
+            <li><b>Banks B and C</b> are the sample chop by chop, the way it sat on the pads. <b>Bank D</b> is for cutting your own.</li>
             <li>Turn <b>PITCH</b> to re-pitch the chops. Change the tempo and the loops speed up with it, like tape.</li>
             <li>Arm <b>REC</b>, press play, and your pad hits are written into the pattern. Double-click any knob to reset it.</li>
           </ul>
@@ -174,10 +176,11 @@ export default function App() {
           <p>
             In October 2002 Kanye West fell asleep at the wheel in Los Angeles and shattered his jaw.
             Two weeks later, with it still wired shut, he recorded this song over Chaka Khan's
-            “Through the Fire”. Lining the two records up shows how the beat was made: her record
-            runs four semitones fast, sampled in mono off the left channel with the highs rolled
-            off, cut into two-beat chops from the last chorus, each chop re-triggered on the grid,
-            with new drums and bass laid on top. Those chops are on bank B.
+            “Through the Fire”. Lining the two records up shows how the beat was made. Every bit of
+            sample comes from one minute of her record, its last chorus and what follows: four
+            semitones fast, in mono off the left channel, highs rolled off, cut into two-beat chops
+            and re-triggered on the grid. The chorus runs straight through; the verses loop the
+            bars after it. New drums and bass sit on top.
           </p>
         </div>
       </footer>

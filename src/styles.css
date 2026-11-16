@@ -599,3 +599,6 @@ kbd {
 @media (prefers-reduced-motion: reduce) {
   .pad-loop.pad-queued { animation: none; outline: 2px dashed var(--ink); outline-offset: -6px; }
 }
+
+.pad-empty { --pad: #2a2623; background: var(--pad); box-shadow: inset 0 2px 5px #000; cursor: default; }
+.pad-empty .pad-key { opacity: 0.25; }
