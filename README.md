@@ -8,11 +8,18 @@
   <img alt="Web Audio API" src="https://img.shields.io/badge/Web_Audio-API-1f1513?style=for-the-badge&labelColor=1f1513&color=3a2b27">
   <img alt="Python" src="https://img.shields.io/badge/Python-analysis-1f1513?style=for-the-badge&logo=python&logoColor=e8a923&labelColor=1f1513&color=3a2b27">
   <img alt="No audio in this repository" src="https://img.shields.io/badge/audio_in_repo-none-1f1513?style=for-the-badge&labelColor=1f1513&color=7d1f2c">
+  <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-1f1513?style=for-the-badge&labelColor=1f1513&color=3a2b27"></a>
+</p>
+
+<p align="center">
+  <a href="https://wire2004.vercel.app"><b>wire2004.vercel.app</b></a>
 </p>
 
 **WIRE-2004 reverse-engineers one beat and puts it on pads.** It lines Kanye West's "Through the Wire" up against the record it samples, Chaka Khan's "Through the Fire", works out exactly how the beat was built, and rebuilds it in the browser from the source record: every chop, at the speed, level and tone it has on the finished song.
 
 Most sampler demos slice a song into equal pieces. This one finds the pieces that were actually used.
+
+> **About the live site.** It runs the same code, but no recording is published with it. There you get Apple's official 30-second preview to chop and a synthesized drum kit. The rebuilt beat, with the chops off the source record, appears once you [build the kit](#build-the-kit) from your own copies of the two songs.
 
 <p align="center">
   <img src="docs/screenshot.png" alt="The sampler with the drum, bass and sample loops running: an amber waveform screen with twelve numbered bars, four banks of pads, knobs for pitch, tone, swing and volume, and a step sequencer" width="100%">
@@ -176,6 +183,10 @@ docs/make_figures.py     measurements -> the figures on this page
 ```
 
 React and Vite, with no other runtime dependencies. All sound goes through the Web Audio API: a lookahead scheduler drives the sequencer and starts loops on the bar line, sample-accurately.
+
+## Licence
+
+The code is released under the [MIT Licence](LICENSE). That covers the software only. It grants nothing over the two recordings, which are not part of this repository.
 
 ## Credits
 

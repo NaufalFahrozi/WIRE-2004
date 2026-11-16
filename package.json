@@ -1,7 +1,24 @@
 {
   "name": "wire-2004",
+  "version": "1.0.0",
   "private": true,
-  "version": "0.1.0",
+  "description": "A browser sampler that reverse-engineers the beat of Kanye West's Through the Wire and rebuilds it from the record it samples.",
+  "license": "MIT",
+  "author": "NaufalFahrozi",
+  "homepage": "https://wire2004.vercel.app",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NaufalFahrozi/WIRE-2004.git"
+  },
+  "keywords": [
+    "sampler",
+    "web-audio",
+    "mpc",
+    "sampling",
+    "beatmaking",
+    "audio-analysis",
+    "react"
+  ],
   "type": "module",
   "scripts": {
     "dev": "vite",
