@@ -65,6 +65,7 @@ The source was played by people and its tempo wanders. A straight copy would sli
 - **Sequencer**: sixteen steps and a pattern for every pad, live recording, swing, tap tempo.
 - **Choke and gate**: chops cut each other off, and can stop when you let go.
 - The screen shows the selected sound, its playhead, and for a chop, where in the source it comes from.
+- Every pad says what it will do: how long a phrase runs, where in the source a chop comes from, whether a loop is playing or waiting for the bar.
 
 ```
              Bank A                        Bank B              Bank C         Bank D
@@ -73,6 +74,8 @@ Q W E R      lead-in, lines 1-3            chops 4-7           chops 20-23    yo
 A S D F      lines 4-5, verse bed, vox     chops 8-11          chops 24-27    your chops 9-12
 Z X C V      kick, snare, hat, snare 2     chops 12-15         chops 28-31    kick, snare, hat, snare 2
 SPACE        play / stop
+ESC          silence everything
+← →          previous / next bank
 ```
 
 ## How it was worked out
