@@ -1,10 +1,10 @@
 {
-  "about": "Where each sung phrase of the sampled stretch starts and ends, in seconds into the source record at its original speed. Found with tools/find_phrases.py and a closer look at the vocal's loudness around each cut. A line of this chorus opens with a short phrase, then a breath, then the rest: the cut goes before the short phrase, not in the breath after it. match_sample.py cuts one pad per phrase from these.",
+  "about": "Where each sung phrase of the sampled stretch starts and ends, in seconds into the source record at its original speed. Found with tools/find_phrases.py and a closer look at the vocal's loudness around each cut. Two lines of this chorus open with a three-word phrase, then a breath, then the rest: the cut goes before the first of those words, not in the breath after them. Where the lead-in is still ringing there is no silence to cut in, so that cut is placed by the timing of the same words four bars later. match_sample.py cuts one pad per phrase from these.",
   "phrases": [
-    { "name": "LEAD-IN", "from": 191.24, "to": 198.31 },
-    { "name": "LINE 1", "from": 198.31, "to": 204.05 },
-    { "name": "LINE 2", "from": 204.05, "to": 212.95 },
-    { "name": "LINE 3", "from": 212.95, "to": 218.69 },
+    { "name": "LEAD-IN", "from": 191.24, "to": 197.9 },
+    { "name": "LINE 1", "from": 197.9, "to": 204.05 },
+    { "name": "LINE 2", "from": 204.05, "to": 212.5 },
+    { "name": "LINE 3", "from": 212.5, "to": 218.69 },
     { "name": "LINE 4", "from": 218.69, "to": 226.02 },
     { "name": "LINE 5", "from": 226.02, "to": 237.05 },
     { "name": "VERSE BED", "from": 237.98, "to": 241.63 },
