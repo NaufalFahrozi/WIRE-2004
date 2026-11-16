@@ -436,6 +436,36 @@ def main(src_path):
     for i, bed in enumerate(beds):
         write(f"source_verse{i + 1}.wav", [by_n[n] for n in bed])
 
+    # Pads cut where the singer breathes rather than on the bar lines: a sung
+    # line starts a little before the bar and rings on past it, so bar-line
+    # cuts leave every pad holding the tail of one line and the head of the
+    # next. The phrase times come from tools/phrases.json.
+    phrase_pads = []
+    phrases_path = Path(__file__).with_name("phrases.json")
+    if phrases_path.exists():
+        order = sorted(by_n)
+        timeline = np.concatenate([by_n[n] for n in order])
+        starts = [next(c["source"] for c in chops if c["n"] == n) for n in order]
+
+        def spot(src_time):
+            """A moment in the source, as a place in the rebuilt run of chops."""
+            i = max(0, int(np.searchsorted(starts, src_time, side="right")) - 1)
+            inside = min(chop_len, max(0.0, (src_time - starts[i]) / rate))
+            return int(round((i * chop_len + inside) * sr))
+
+        for k, phrase in enumerate(json.loads(phrases_path.read_text())["phrases"]):
+            seg = timeline[spot(phrase["from"]) : spot(phrase["to"])].copy()
+            if len(seg) < sr // 10:
+                continue
+            ease = int(0.02 * sr)
+            seg[:fade] *= np.linspace(0, 1, fade)[:, None]
+            seg[-ease:] *= np.linspace(1, 0, ease)[:, None]
+            file = f"source_phrase{k + 1}.wav"
+            write(file, [seg])
+            phrase_pads.append({"name": phrase["name"], "file": file, "source": phrase["from"],
+                                "seconds": round(len(seg) / sr, 3)})
+        print("phrase pads: " + ", ".join(f"{p['name']} {p['seconds']:.2f}s" for p in phrase_pads))
+
     print("chop  role     source     in the song   shift     match")
     for c in sorted(chops, key=lambda c: c["n"]):
         s = c["source"]
@@ -458,6 +488,7 @@ def main(src_path):
         "comes_round_at_bars": sorted(f[3] + 1 for f in found),
         "lead_beats": CHOP_BEATS if lead else 0,
         "verse_beds": [bed[0] for bed in beds],
+        "phrases": phrase_pads,
         "level": round(scale, 4),
         "chops": [{"n": c["n"], "role": c["role"], "source": round(float(c["source"]), 4), "at": round(float(c["at"]), 3),
                    "shift_ms": round(c["lag"] * 1000, 1), "guessed": bool(c.get("guessed"))}

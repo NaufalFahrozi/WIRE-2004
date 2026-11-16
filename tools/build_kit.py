@@ -293,6 +293,9 @@ def main():
                for i in range(sample_info["lines"])][:6]
         by_n = {c["n"]: c for c in every}
         row += [shot(f"VERSE {i + 1}", f"source_verse{i + 1}.wav", by_n[n]["source"]) for i, n in enumerate(sample_info.get("verse_beds", []))]
+        # Better still, the pads cut phrase by phrase, where the singer breathes.
+        if sample_info.get("phrases"):
+            row = [shot(p["name"], p["file"], p["source"]) for p in sample_info["phrases"]]
         pads = [
             {"name": "DRUMS", "kind": "loop", "file": "loop_drums.wav", "bars": bars},
             {"name": "BASS", "kind": "loop", "file": "loop_bass.wav", "bars": bars},

@@ -72,6 +72,7 @@ python -m venv --system-site-packages .venv
 | `separate.py` | Splits the song into stems with Demucs (a few minutes on a CPU) |
 | `build_kit.py` | Finds the tempo and bar lines, finds the eight bars where the sample plays with the least rapping over it, and picks the cleanest kick, snare and hi-hat hits out of the drum stem |
 | `match_sample.py` | Traces the sample back to the source record: how much it was sped up, how far the chorus really runs, which piece of the source sits under each chop, and how it was sampled. Cuts the chops out of the source itself |
+| `find_phrases.py` | Optional. Lists the sung phrases in the sampled stretch and the breaths between them, for filling in `tools/phrases.json`: a sung line starts before the bar and rings on past it, so bar lines are the wrong place to cut one |
 | `build_kit.py` again | Cuts the drum, bass and record loops to the chorus's full length and puts the traced sample on the pads |
 
 Everything is written to `public/kit/`, which is git-ignored, and the app loads it on its own. Skip the last two steps and the sample pads fall back to stems separated from the finished song. With no kit at all, for example on a fresh clone, the app plays Apple's official 30-second preview with a synthesized drum kit standing in.
@@ -80,7 +81,7 @@ Everything is written to `public/kit/`, which is git-ignored, and the app loads 
 
 | | |
 | --- | --- |
-| Bank A, the beat | The chorus rebuilt. Four twelve-bar loops that stack in time: the added drums, the added bass, the sample cut clean from the source record, and the finished record to compare against. The sample and the record come in on their pickup, half a bar before the bar line, as they do on the record. Then the sample line by line (two bars a pad, the first starting on its pickup), the two stretches the verses are looped from, and four drum hits |
+| Bank A, the beat | The chorus rebuilt. Four twelve-bar loops that stack in time: the added drums, the added bass, the sample cut clean from the source record, and the finished record to compare against. The sample and the record come in on their pickup, half a bar before the bar line, as they do on the record. Then the sample phrase by phrase, cut where the singer breathes rather than on the bar lines: the lead-in, the five lines of the chorus, the one bar of music the verses loop, and the sung phrase the verses loop. Then four drum hits |
 | Banks B and C, the chops | The sample chop by chop, the way it sat on the pads: the pickup, the chorus's 24 two-beat chops, then the 7 that the verses are looped from, straight off "Through the Fire". In order they make the record; out of order they make something new |
 | Bank D, chop it | Twelve chops you place yourself anywhere in the song: cut on the beat, or on the transients, from the full mix or from any of five stems |
 | Synced loops | A loop you tap comes in on the next bar line and joins at the bar the others have reached. Change the tempo and the loops speed up with it, like tape |
@@ -97,8 +98,8 @@ Your pattern and knob settings are saved in the browser.
 ```
              Bank A                        Bank B              Bank C         Bank D
 1 2 3 4      drums, bass, sample, record   pickup, chops 1-3   chops 16-19    your chops 1-4
-Q W E R      lines 1-4                     chops 4-7           chops 20-23    your chops 5-8
-A S D F      lines 5-6, verse 1, verse 2   chops 8-11          chops 24-27    your chops 9-12
+Q W E R      lead-in, lines 1-3            chops 4-7           chops 20-23    your chops 5-8
+A S D F      lines 4-5, verse bed, vox     chops 8-11          chops 24-27    your chops 9-12
 Z X C V      kick, snare, hat, snare 2     chops 12-15         chops 28-31    kick, snare, hat, snare 2
 SPACE        play / stop
 ```
@@ -113,6 +114,8 @@ src/components/         screen, pads, knobs, step sequencer
 tools/separate.py       song -> stems
 tools/build_kit.py      stems -> tempo, bar lines, loops, drum hits, kit.json
 tools/match_sample.py   source record -> speed, chop map, the chops themselves
+tools/find_phrases.py   source record -> where each sung phrase starts and ends
+tools/phrases.json      the phrase cuts used for the pads
 ```
 
 Built with React and Vite. No other runtime dependencies.
