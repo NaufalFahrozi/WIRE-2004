@@ -475,19 +475,30 @@ class Engine {
     }
     loops[pad] = 'queued'
     this.set({ loops, message: `${this.nameOf(pad)} LOOP COMES IN ON THE BAR` })
-    if (!this.state.playing) this.play()
+    // From a standstill, a loop with a pickup gets its pickup: the clock
+    // starts that far before the bar line.
+    if (!this.state.playing) this.play(this.leadSteps(pad))
+  }
+
+  // A loop's pickup, as a number of sequencer steps before the bar line.
+  leadSteps(pad) {
+    const lead = this.kitPads[pad - BANK_SIZE]?.lead ?? 0
+    return Math.round((lead * this.state.kit.bpm * 4) / 60)
   }
 
   loopRate() {
     return this.state.bpm / this.state.kit.bpm
   }
 
-  startLoop(pad, t) {
-    const { buffer, bars } = this.kitPads[pad - BANK_SIZE]
+  startLoop(pad, t, fromPickup = false) {
+    const { buffer, bars, lead = 0 } = this.kitPads[pad - BANK_SIZE]
     const ctx = this.ctx
     const src = ctx.createBufferSource()
     src.buffer = buffer
     src.loop = true
+    // The pickup, if there is one, plays once; the loop turns over after it.
+    src.loopStart = lead
+    src.loopEnd = buffer.duration
     const rate = this.loopRate()
     src.playbackRate.value = rate
     const g = ctx.createGain()
@@ -496,7 +507,7 @@ class Engine {
     src.connect(g).connect(this.sampleBus)
     // Join at the bar the song has reached, so loops started at different
     // moments still line up phrase for phrase.
-    const offset = (this.barCount % bars) * (240 / this.state.kit.bpm)
+    const offset = fromPickup ? 0 : lead + (this.barCount % bars) * (240 / this.state.kit.bpm)
     src.start(t, offset)
     this.loopNodes.set(pad, { src, g, t0: t, offset, rate })
     this.flash(pad, t)
@@ -516,13 +527,17 @@ class Engine {
   }
 
   // Where a loop's playhead is, as a fraction of its length.
-  loopPosition(pad) {
+  loopSeconds(pad, now = this.ctx.currentTime) {
     const node = this.loopNodes.get(pad)
-    const buffer = this.kitPads[pad - BANK_SIZE]?.buffer
-    if (!node || !buffer) return null
-    const now = this.ctx.currentTime
-    if (now < node.t0) return null
-    return ((node.offset + (now - node.t0) * node.rate) % buffer.duration) / buffer.duration
+    const { buffer, lead = 0 } = this.kitPads[pad - BANK_SIZE] ?? {}
+    if (!node || !buffer || now < node.t0) return null
+    const pos = node.offset + (now - node.t0) * node.rate
+    return pos < buffer.duration ? pos : lead + ((pos - lead) % (buffer.duration - lead))
+  }
+
+  loopPosition(pad) {
+    const at = this.loopSeconds(pad)
+    return at == null ? null : at / this.kitPads[pad - BANK_SIZE].buffer.duration
   }
 
   // ---- knobs ---------------------------------------------------------------
@@ -548,8 +563,7 @@ class Engine {
     const now = this.ctx.currentTime
     const rate = this.loopRate()
     for (const [pad, node] of this.loopNodes) {
-      const length = this.kitPads[pad - BANK_SIZE].buffer.duration
-      node.offset = (node.offset + Math.max(0, now - node.t0) * node.rate) % length
+      node.offset = this.loopSeconds(pad, now) ?? node.offset
       node.t0 = Math.max(now, node.t0)
       node.rate = rate
       node.src.playbackRate.setValueAtTime(rate, now)
@@ -575,9 +589,9 @@ class Engine {
     this.state.playing ? this.stop() : this.play()
   }
 
-  play() {
+  play(leadSteps = 0) {
     this.wake()
-    this.nextStep = 0
+    this.nextStep = (STEPS - leadSteps) % STEPS
     this.barCount = 0
     this.nextTime = this.ctx.currentTime + 0.06
     this.skip.clear()
@@ -599,12 +613,17 @@ class Engine {
     while (this.nextTime < ctx.currentTime + 0.12) {
       const s = this.nextStep
       const t = this.nextTime + (s % 2 ? this.state.swing * this.stepDur * 0.5 : 0)
-      if (s === 0) {
-        for (const [pad, status] of Object.entries(this.state.loops)) {
-          if (status === 'queued' && !this.loopNodes.has(+pad)) this.startLoop(+pad, t)
-        }
-        this.barCount++
+      for (const [pad, status] of Object.entries(this.state.loops)) {
+        if (status !== 'queued' || this.loopNodes.has(+pad)) continue
+        const lead = this.leadSteps(+pad)
+        // A loop with a pickup starts that far before the bar line, but only
+        // when the bar coming up is the first of the phrase. Joining halfway
+        // through, it comes in on the bar line like any other.
+        const phraseNext = this.barCount % this.kitPads[+pad - BANK_SIZE].bars === 0
+        if (lead && s === STEPS - lead && phraseNext) this.startLoop(+pad, t, true)
+        else if (s === 0) this.startLoop(+pad, t)
       }
+      if (s === 0) this.barCount++
       for (let pad = 0; pad < N_PADS; pad++) {
         if (!this.state.pattern[pad][s]) continue
         const key = `${pad}:${s}`

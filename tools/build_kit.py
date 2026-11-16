@@ -267,8 +267,15 @@ def main():
         # chorus's full length, from where match_sample.py placed it.
         bars = sample_info["bars"]
         kit_start = sample_info["start"]
-        for stem in ("drums", "bass", "full"):
+        for stem in ("drums", "bass"):
             sf.write(KIT / f"loop_{stem}.wav", loop_cut(KIT / f"{stem}.flac", sr, kit_start, bars * bar), sr, subtype="PCM_16")
+        # The sample comes in on a pickup, a little before the bar line. The
+        # sample loop and the record loop carry that lead-in; it plays once,
+        # and the loop then turns over from the bar line.
+        lead = sample_info.get("lead_beats", 0) * beat
+        if kit_start - lead < 0.004:
+            raise SystemExit("the chosen chorus starts too close to the start of the song for its pickup")
+        sf.write(KIT / "loop_full.wav", loop_cut(KIT / "full.flac", sr, kit_start - lead, bars * bar + lead), sr, subtype="PCM_16")
         empty = {"name": "", "kind": "empty"}
 
         def shot(name, file, source):
@@ -277,23 +284,24 @@ def main():
         every = sample_info["chops"]
         chorus = [c for c in every if c["role"] == "chorus"]
         after = [c for c in every if c["role"] == "verse"]
-        pickup = [shot("PICKUP", "source_pickup.wav", c["source"]) for c in every if c["role"] == "pickup"]
+        pickup = [c for c in every if c["role"] == "pickup"]
         per_line = len(chorus) // sample_info["lines"]
 
-        # Bank A: the loops, the chorus line by line, the pickup into it, the
-        # bed under the verses, and the drum hits.
-        row = [shot(f"LINE {i + 1}", f"source_line{i + 1}.wav", chorus[i * per_line]["source"]) for i in range(sample_info["lines"])][:6]
-        row += pickup
-        if sample_info.get("has_verse_bed"):
-            row.append(shot("VERSE", "source_verse.wav", after[-per_line]["source"]))
+        # Bank A: the loops, the chorus line by line (the first line starts on
+        # its pickup), the beds the verses are looped from, and the drum hits.
+        row = [shot(f"LINE {i + 1}", f"source_line{i + 1}.wav", (pickup + chorus)[0]["source"] if i == 0 else chorus[i * per_line]["source"])
+               for i in range(sample_info["lines"])][:6]
+        by_n = {c["n"]: c for c in every}
+        row += [shot(f"VERSE {i + 1}", f"source_verse{i + 1}.wav", by_n[n]["source"]) for i, n in enumerate(sample_info.get("verse_beds", []))]
         pads = [
             {"name": "DRUMS", "kind": "loop", "file": "loop_drums.wav", "bars": bars},
             {"name": "BASS", "kind": "loop", "file": "loop_bass.wav", "bars": bars},
-            {"name": "SAMPLE", "kind": "loop", "file": "source_loop.wav", "bars": bars},
-            {"name": "RECORD", "kind": "loop", "file": "loop_full.wav", "bars": bars},
+            {"name": "SAMPLE", "kind": "loop", "file": "source_loop.wav", "bars": bars, "lead": round(lead, 5)},
+            {"name": "RECORD", "kind": "loop", "file": "loop_full.wav", "bars": bars, "lead": round(lead, 5)},
         ] + (row + [empty] * 8)[:8] + (drum_pads + [empty] * 4)[:4]
-        # Banks B and C: every chop in source order, one a pad.
-        singles = [shot(f"CHOP {c['n']:02d}", f"source_chop{c['n']:02d}.wav", c["source"]) for c in chorus + after] + pickup
+        # Banks B and C: every chop in source order, one a pad, pickup first.
+        singles = [shot("PICKUP", "source_pickup.wav", c["source"]) for c in pickup]
+        singles += [shot(f"CHOP {c['n']:02d}", f"source_chop{c['n']:02d}.wav", c["source"]) for c in chorus + after]
         for i in range(0, min(len(singles), 32), 16):
             pads += (singles[i : i + 16] + [empty] * 16)[:16]
         print(f"sample traced to {sample_info['artist']}, {sample_info['title']}: "

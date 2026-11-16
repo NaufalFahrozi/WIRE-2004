@@ -115,8 +115,9 @@ function drawKitPad(g, w, h, s) {
   if (kp.kind === 'loop') {
     g.font = '16px VT323, monospace'
     g.textBaseline = 'top'
+    const lead = (kp.lead ?? 0) / kp.buffer.duration
     for (let b = 0; b < kp.bars; b++) {
-      const px = Math.round((b / kp.bars) * w)
+      const px = Math.round((lead + (b / kp.bars) * (1 - lead)) * w)
       g.fillStyle = '#1a1204'
       g.fillRect(px - 1, top, 3, h - top)
       g.fillStyle = AMBER

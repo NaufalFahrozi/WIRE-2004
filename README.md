@@ -80,8 +80,8 @@ Everything is written to `public/kit/`, which is git-ignored, and the app loads 
 
 | | |
 | --- | --- |
-| Bank A, the beat | The chorus rebuilt. Four twelve-bar loops that stack in time: the added drums, the added bass, the sample cut clean from the source record, and the finished record to compare against. Then the sample line by line (two bars a pad), the pickup that leads into it, the bed that runs under the verses, and four drum hits |
-| Banks B and C, the chops | The sample chop by chop, the way it sat on the pads: the chorus's 24 two-beat chops, then the 7 that the verses are looped from, straight off "Through the Fire". In order they make the record; out of order they make something new |
+| Bank A, the beat | The chorus rebuilt. Four twelve-bar loops that stack in time: the added drums, the added bass, the sample cut clean from the source record, and the finished record to compare against. The sample and the record come in on their pickup, half a bar before the bar line, as they do on the record. Then the sample line by line (two bars a pad, the first starting on its pickup), the two stretches the verses are looped from, and four drum hits |
+| Banks B and C, the chops | The sample chop by chop, the way it sat on the pads: the pickup, the chorus's 24 two-beat chops, then the 7 that the verses are looped from, straight off "Through the Fire". In order they make the record; out of order they make something new |
 | Bank D, chop it | Twelve chops you place yourself anywhere in the song: cut on the beat, or on the transients, from the full mix or from any of five stems |
 | Synced loops | A loop you tap comes in on the next bar line and joins at the bar the others have reached. Change the tempo and the loops speed up with it, like tape |
 | Waveform screen | Shows the selected sound with its playhead, and for a chop, where in the source record it comes from. In bank D, drag a marker to move a chop and click the strip above to move to another part of the song |
@@ -95,11 +95,11 @@ Your pattern and knob settings are saved in the browser.
 ## Keys
 
 ```
-             Bank A                        Bank B        Bank C               Bank D
-1 2 3 4      drums, bass, sample, record   chops 1-4     chops 17-20          your chops 1-4
-Q W E R      lines 1-4                     chops 5-8     chops 21-24          your chops 5-8
-A S D F      lines 5-6, pickup, verse      chops 9-12    chops 25-28          your chops 9-12
-Z X C V      kick, snare, hat, snare 2     chops 13-16   chops 29-31, pickup  kick, snare, hat, snare 2
+             Bank A                        Bank B              Bank C         Bank D
+1 2 3 4      drums, bass, sample, record   pickup, chops 1-3   chops 16-19    your chops 1-4
+Q W E R      lines 1-4                     chops 4-7           chops 20-23    your chops 5-8
+A S D F      lines 5-6, verse 1, verse 2   chops 8-11          chops 24-27    your chops 9-12
+Z X C V      kick, snare, hat, snare 2     chops 12-15         chops 28-31    kick, snare, hat, snare 2
 SPACE        play / stop
 ```
 

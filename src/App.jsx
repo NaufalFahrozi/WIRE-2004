@@ -151,9 +151,9 @@ export default function App() {
                   : !s.kit.sample
                     ? 'The hook of the record, pulled apart. Top row: its drums, bass, music and vocal as loops that stack in time. Middle rows: the sample, one bar per pad. Bottom row: single drum hits.'
                     : s.bank === 'A'
-                      ? `The chorus, rebuilt from its parts. Top row: the drums and the bass that were added, the sample itself (all ${s.kit.sample.bars} bars, cut clean from ${s.kit.sample.artist}'s “${s.kit.sample.title}” and sped up ${s.kit.sample.rate.toFixed(2)}x), and the finished record to compare against. Middle rows: the sample line by line, the pickup that leads into it, and the bed that runs under the verses. Bottom row: single drum hits.`
+                      ? `The chorus, rebuilt from its parts. Top row: the drums and the bass that were added, the sample itself (all ${s.kit.sample.bars} bars, cut clean from ${s.kit.sample.artist}'s “${s.kit.sample.title}” and sped up ${s.kit.sample.rate.toFixed(2)}x), and the finished record to compare against. Middle rows: the sample line by line, the first line starting on its pickup, and the two stretches the verses are looped from. Bottom row: single drum hits.`
                       : s.bank === 'B'
-                        ? `The chorus as it sat on the pads: chops 1 to 16, ${s.kit.sample.chop_beats} beats each, straight off “${s.kit.sample.title}”. Play them in order and you have the record. Play them out of order and you have something new.`
+                        ? `The chorus as it sat on the pads, from its pickup on: ${s.kit.sample.chop_beats} beats a pad, straight off “${s.kit.sample.title}”. Play them in order and you have the record. Play them out of order and you have something new.`
                         : 'The rest of the chops: the end of the chorus, then the stretch of the source that the verses are looped from.'}
             </p>
           </div>
@@ -165,7 +165,7 @@ export default function App() {
           <h2>How to play</h2>
           <ul>
             <li>Keys <b>1 2 3 4 / Q W E R / A S D F / Z X C V</b> match the pads, row by row. <b>Space</b> starts and stops the clock.</li>
-            <li><b>Bank A</b> is the beat rebuilt. Tap the top row to bring a loop in on the next bar; tap again to drop it out. Drums, bass and sample together make the chorus; the record pad lets you check.</li>
+            <li><b>Bank A</b> is the beat rebuilt. Tap the top row to bring a loop in on the next bar; tap again to drop it out. The sample and the record come in on their pickup, half a bar early. Drums, bass and sample together make the chorus; the record pad lets you check.</li>
             <li><b>Banks B and C</b> are the sample chop by chop, the way it sat on the pads. <b>Bank D</b> is for cutting your own.</li>
             <li>Turn <b>PITCH</b> to re-pitch the chops. Change the tempo and the loops speed up with it, like tape.</li>
             <li>Arm <b>REC</b>, press play, and your pad hits are written into the pattern. Double-click any knob to reset it.</li>

@@ -422,14 +422,19 @@ def main(src_path):
     for n, seg in by_n.items():
         write("source_pickup.wav" if n == 0 else f"source_chop{n:02d}.wav", [seg])
     # Two bars at a time the chorus falls into its lines.
+    # The pickup is the start of the first line, not a piece of its own: the
+    # line and the loop both begin with it.
+    lead = [by_n[0]] if 0 in by_n else []
     n_lines = n_chorus // per_line
     for i in range(n_lines):
-        write(f"source_line{i + 1}.wav", [by_n[i * per_line + k + 1] for k in range(per_line)])
-    write("source_loop.wav", [by_n[i + 1] for i in range(n_chorus)])
+        write(f"source_line{i + 1}.wav", (lead if i == 0 else []) + [by_n[i * per_line + k + 1] for k in range(per_line)])
+    write("source_loop.wav", lead + [by_n[i + 1] for i in range(n_chorus)])
+    # What the verses are looped from, in the two stretches they use: the bars
+    # straight after the chorus, and the two bars after those.
     verse = [c["n"] for c in chops if c["role"] == "verse"]
-    if len(verse) >= per_line:
-        # The last two bars of it, in one piece: the bed under the verses.
-        write("source_verse.wav", [by_n[n] for n in verse[-per_line:]])
+    beds = [verse[:-per_line], verse[-per_line:]] if len(verse) > per_line else [verse] if verse else []
+    for i, bed in enumerate(beds):
+        write(f"source_verse{i + 1}.wav", [by_n[n] for n in bed])
 
     print("chop  role     source     in the song   shift     match")
     for c in sorted(chops, key=lambda c: c["n"]):
@@ -451,7 +456,8 @@ def main(src_path):
         "bars": total_bars,
         "lines": n_lines,
         "comes_round_at_bars": sorted(f[3] + 1 for f in found),
-        "has_verse_bed": len(verse) >= per_line,
+        "lead_beats": CHOP_BEATS if lead else 0,
+        "verse_beds": [bed[0] for bed in beds],
         "level": round(scale, 4),
         "chops": [{"n": c["n"], "role": c["role"], "source": round(float(c["source"]), 4), "at": round(float(c["at"]), 3),
                    "shift_ms": round(c["lag"] * 1000, 1), "guessed": bool(c.get("guessed"))}
